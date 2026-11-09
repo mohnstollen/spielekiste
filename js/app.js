@@ -1,7 +1,7 @@
 import * as S from './storage.js';
 import GAMES from './games/index.js';
 
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 const $ = (s, el = document) => el.querySelector(s);
 const view = $('#view'), titleEl = $('#title'), backBtn = $('#back'), slot = $('#slot');
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -182,6 +182,7 @@ function homeView() {
     <nav class="menu">
       <a href="#/bestenliste">🏆 Bestenlisten</a>
       <a href="#/statistik">📊 Meine Statistik</a>
+      <a href="druck.html">🖨️ Sudokus zum Ausdrucken</a>
       <a href="#/einstellungen">⚙️ Profile & Einstellungen</a>
       ${installPrompt ? '<button id="install">📲 Als App installieren</button>' : ''}
     </nav>`;

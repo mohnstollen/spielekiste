@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sudoku-Druckstudio</title>
+<link rel="icon" href="icons/icon-192.png">
+<style>
+  :root {
+    --bg: #f4f2ee; --card: #fff; --ink: #1d1d1f; --muted: #6b6b70;
+    --line: #c9c6bf; --accent: #2f5d8a; --accent-2: #e8eef5;
+    --given: #1d1d1f; --error: #c0392b; --ok: #2e7d4f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+  .screen { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  .applink { display: inline-block; margin-bottom: 10px; color: var(--accent); text-decoration: none; font-size: .92rem; }
+  header h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  header p { margin: 0 0 18px; color: var(--muted); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; background: var(--card); padding: 12px 16px; border-radius: 10px; border: 1px solid var(--line); margin-bottom: 18px; }
+  .toolbar .grow { flex: 1; }
+  label { font-size: .92rem; display: inline-flex; gap: 6px; align-items: center; }
+  select, input[type=text], button { font: inherit; font-size: .92rem; }
+  select, input[type=text] { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+  button { padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
+  button:hover { background: var(--accent-2); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { background: #244a6f; }
+  button:disabled { opacity: .5; cursor: wait; }
+  #slots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; max-width: 820px; margin: 0 auto; }
+  @media (max-width: 720px) { #slots { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .card-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .card-head strong { margin-right: auto; }
+  .board { display: grid; grid-template-columns: repeat(9, 1fr); width: 100%; max-width: 360px; aspect-ratio: 1; margin: 0 auto; border: 2.5px solid var(--ink); }
+  .board input { width: 100%; height: 100%; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: center; font-size: 1.25rem; padding: 0; color: #2f5d8a; background: #fff; caret-color: transparent; }
+  .board input.given { color: var(--given); font-weight: 700; }
+  .board input.br { border-right: 2px solid var(--ink); }
+  .board input.bb { border-bottom: 2px solid var(--ink); }
+  .board input:focus { outline: none; background: #fff6d6; }
+  .board input.conflict { background: #fbe3e0; color: var(--error); }
+  .board.busy { opacity: .35; }
+  .status { margin-top: 8px; font-size: .85rem; color: var(--muted); text-align: center; min-height: 1.2em; }
+  .status.ok { color: var(--ok); } .status.bad { color: var(--error); }
+  .hint { color: var(--muted); font-size: .88rem; margin-top: 20px; line-height: 1.5; }
+  .print { display: none; }
+
+  /* ---------- Druck ---------- */
+  @page { size: A4 portrait; margin: 10mm; }
+  @media print {
+    body { background: #fff; }
+    .screen { display: none; }
+    .print { display: block; }
+    .sheet { width: 190mm; height: 274mm; display: flex; flex-direction: column; page-break-after: always; break-after: page; }
+    .sheet:last-child { page-break-after: auto; break-after: auto; }
+    .sheet-title { text-align: center; font: 600 14pt Helvetica, Arial, sans-serif; margin: 0 0 2mm; min-height: 6mm; }
+    .sheet-grid { flex: 1; display: grid; grid-template-columns: 92mm 92mm; justify-content: space-between; align-content: space-evenly; }
+    .ps-label { font: 10pt Helvetica, Arial, sans-serif; display: flex; justify-content: space-between; margin-bottom: 1.5mm; color: #333; }
+    .ps table { border-collapse: collapse; width: 92mm; height: 92mm; table-layout: fixed; border: 0.7mm solid #000; }
+    .ps tr { height: calc(92mm / 9); }
+    .ps td { border: 0.2mm solid #777; text-align: center; vertical-align: middle; font: 19pt Helvetica, Arial, sans-serif; padding: 0; height: calc(92mm / 9); line-height: 1; overflow: hidden; }
+    .ps td.br { border-right: 0.7mm solid #000; }
+    .ps td.bb { border-bottom: 0.7mm solid #000; }
+    .sol td { color: #888; font-size: 15pt; }
+    .sol td.g { color: #000; font-weight: 700; }
+    .ps .none { width: 92mm; height: 92mm; border: 0.3mm dashed #999; display: flex; align-items: center; justify-content: center; font: 10pt Helvetica, Arial, sans-serif; color: #777; }
+  }
+</style>
+</head>
+<body>
+<div class="screen">
+  <header>
+    <a class="applink" href="./">‹ Zur Spielekiste</a>
+    <h1>Sudoku-Druckstudio</h1>
+    <p>Vier Sudokus zusammenstellen, Schwierigkeit pro Rätsel wählen und auf ein A4-Blatt drucken.</p>
+  </header>
+
+  <div class="toolbar">
+    <label>Alle auf
+      <select id="allDiff"></select>
+    </label>
+    <button id="genAll">Alle neu erzeugen</button>
+    <span class="grow"></span>
+    <label>Überschrift <input type="text" id="title" placeholder="optional" size="18"></label>
+    <label><input type="checkbox" id="withSol"> Lösungsseite mitdrucken</label>
+    <button id="printBtn" class="primary">Drucken</button>
+  </div>
+
+  <main id="slots"></main>
+
+  <p class="hint">
+    <b>Schwierigkeitsgrade:</b> Leicht – nur eine Zahl passt in ein Feld · Mittel – zusätzlich „nur ein Feld für eine Zahl“ ·
+    Schwer – Paare und Block-/Zeilen-Ausschluss nötig · Sehr schwer – kaum Vorgaben, ggf. Tripel/X-Wing ·
+    Extrem – mit diesen Techniken nicht lösbar, braucht Ketten, Swordfish o. Ä. oder Ausprobieren.<br>
+    <b>Eigene Sudokus:</b> Klick auf „Leeren“ und tippe die Zahlen direkt ins Feld (Pfeiltasten zum Bewegen, Entf/Rücktaste zum Löschen).
+    Du kannst auch erzeugte Rätsel nachträglich ändern. Die App prüft, ob das Rätsel eindeutig lösbar ist.<br>
+    <b>Drucken:</b> Im Druckdialog „A4“ und Skalierung „100 %“ bzw. „Standard“ wählen, Kopf- und Fußzeilen ausschalten.
+    Deine aktuelle Zusammenstellung bleibt im Browser gespeichert.
+  </p>
+</div>
+
+<div id="printArea" class="print"></div>
+
+<script>
+/* ================== Sudoku-Kern ================== */
+const ROW = [], COL = [], BOX = [];
+for (let i = 0; i < 81; i++) { ROW[i] = Math.floor(i / 9); COL[i] = i % 9; BOX[i] = Math.floor(ROW[i] / 3) * 3 + Math.floor(COL[i] / 3); }
+const UNITS = [];
+for (let k = 0; k < 9; k++) {
+  UNITS.push([...Array(81).keys()].filter(i => ROW[i] === k));
+  UNITS.push([...Array(81).keys()].filter(i => COL[i] === k));
+  UNITS.push([...Array(81).keys()].filter(i => BOX[i] === k));
+}
+const ALL = 0x3FE; // Bits 1..9
+function popcnt(m) { let n = 0; while (m) { m &= m - 1; n++; } return n; }
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+// Backtracking-Löser: zählt Lösungen bis limit, merkt sich die erste
+function solve(g0, limit = 2, randomize = false) {
+  const g = g0.slice();
+  const R = new Array(9).fill(0), C = new Array(9).fill(0), B = new Array(9).fill(0);
+  for (let i = 0; i < 81; i++) if (g[i]) {
+    const v = 1 << g[i];
+    if ((R[ROW[i]] | C[COL[i]] | B[BOX[i]]) & v) return { count: 0, solution: null };
+    R[ROW[i]] |= v; C[COL[i]] |= v; B[BOX[i]] |= v;
+  }
+  let count = 0, solution = null;
+  const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  function rec() {
+    let best = -1, bestMask = 0, bestCnt = 10;
+    for (let i = 0; i < 81; i++) if (!g[i]) {
+      const m = ~(R[ROW[i]] | C[COL[i]] | B[BOX[i]]) & ALL;
+      const n = popcnt(m);
+      if (n < bestCnt) { best = i; bestMask = m; bestCnt = n; if (n <= 1) break; }
+    }
+    if (best < 0) { count++; if (!solution) solution = g.slice(); return count >= limit; }
+    if (bestCnt === 0) return false;
+    const order = randomize ? shuffle(digits.slice()) : digits;
+    for (const d of order) {
+      const v = 1 << d;
+      if (!(bestMask & v)) continue;
+      g[best] = d; R[ROW[best]] |= v; C[COL[best]] |= v; B[BOX[best]] |= v;
+      if (rec()) return true;
+      g[best] = 0; R[ROW[best]] &= ~v; C[COL[best]] &= ~v; B[BOX[best]] &= ~v;
+    }
+    return false;
+  }
+  rec();
+  return { count, solution };
+}
+
+function candidates(g, i) {
+  let used = 0;
+  for (let k = 0; k < 81; k++) if (g[k] && (ROW[k] === ROW[i] || COL[k] === COL[i] || BOX[k] === BOX[i])) used |= 1 << g[k];
+  return ~used & ALL;
+}
+
+// Logischer Löser – Stufe 1: Nackte Einer · 2: + Versteckte Einer
+// 3: + Block-/Linien-Interaktion, Paare · 4: + Tripel, X-Wing
+const PEERS=[];for(let i=0;i<81;i++){PEERS[i]=[];for(let k=0;k<81;k++)if(k!==i&&(ROW[k]===ROW[i]||COL[k]===COL[i]||BOX[k]===BOX[i]))PEERS[i].push(k);}
+function combos(arr,n,start=0,cur=[],out=[]){if(cur.length===n){out.push(cur.slice());return out;}for(let i=start;i<arr.length;i++){cur.push(arr[i]);combos(arr,n,i+1,cur,out);cur.pop();}return out;}
+function logicSolve(g0, level){
+  const g=g0.slice(), cand=new Array(81).fill(0);
+  for(let i=0;i<81;i++) if(!g[i]) cand[i]=candidates(g,i);
+  const place=(i,d)=>{g[i]=d;cand[i]=0;for(const p of PEERS[i])cand[p]&=~(1<<d);};
+  const elim=(i,m)=>{if(cand[i]&m){cand[i]&=~m;return true;}return false;};
+  for(;;){
+    let empty=0;
+    for(let i=0;i<81;i++) if(!g[i]){ if(!cand[i]) return false; empty++; }
+    if(!empty) return true;
+    let i1=-1; for(let i=0;i<81;i++) if(!g[i]&&popcnt(cand[i])===1){i1=i;break;}
+    if(i1>=0){place(i1,Math.log2(cand[i1]));continue;}
+    if(level<2) return false;
+    let done=false;
+    for(const u of UNITS){for(let d=1;d<=9&&!done;d++){let w=-1,n=0;for(const i of u)if(!g[i]&&(cand[i]&(1<<d))){w=i;n++;}if(n===1){place(w,d);done=true;}}if(done)break;}
+    if(done) continue;
+    if(level<3) return false;
+    let ch=false;
+    // Block-/Linien-Interaktion
+    for(let d=1;d<=9;d++){const b=1<<d;
+      for(const u of UNITS){const cells=u.filter(i=>cand[i]&b);if(cells.length<2)continue;
+        const sameBox=cells.every(i=>BOX[i]===BOX[cells[0]]),sameRow=cells.every(i=>ROW[i]===ROW[cells[0]]),sameCol=cells.every(i=>COL[i]===COL[cells[0]]);
+        if(sameBox) for(let i=0;i<81;i++) if(BOX[i]===BOX[cells[0]]&&!u.includes(i)) ch=elim(i,b)||ch;
+        if(sameRow) for(let i=0;i<81;i++) if(ROW[i]===ROW[cells[0]]&&!u.includes(i)) ch=elim(i,b)||ch;
+        if(sameCol) for(let i=0;i<81;i++) if(COL[i]===COL[cells[0]]&&!u.includes(i)) ch=elim(i,b)||ch;
+      }}
+    if(ch) continue;
+    // nackte und versteckte Paare (Stufe 3), Tripel (Stufe 4)
+    const maxN = level>=4?3:2;
+    for(let n=2;n<=maxN&&!ch;n++) for(const u of UNITS){
+      const em=u.filter(i=>!g[i]); if(em.length<=n) continue;
+      for(const c of combos(em,n)){let m=0;for(const i of c)m|=cand[i];
+        if(popcnt(m)===n) for(const i of em) if(!c.includes(i)) ch=elim(i,m)||ch;}
+      const ds=[];for(let d=1;d<=9;d++)if(em.some(i=>cand[i]&(1<<d)))ds.push(d);
+      for(const c of combos(ds,n)){let m=0;for(const d of c)m|=1<<d;
+        const cells=em.filter(i=>cand[i]&m);
+        if(cells.length===n) for(const i of cells) ch=elim(i,~m&ALL)||ch;}
+    }
+    if(ch) continue;
+    if(level<4) return false;
+    // X-Wing
+    for(let d=1;d<=9&&!ch;d++){const b=1<<d;
+      for(const [A,Bk] of [[ROW,COL],[COL,ROW]]){
+        const pos=[];for(let r=0;r<9;r++){const cs=[];for(let i=0;i<81;i++)if(A[i]===r&&(cand[i]&b))cs.push(Bk[i]);pos.push(cs);}
+        for(let r1=0;r1<9;r1++)if(pos[r1].length===2)for(let r2=r1+1;r2<9;r2++)
+          if(pos[r2].length===2&&pos[r2][0]===pos[r1][0]&&pos[r2][1]===pos[r1][1])
+            for(let i=0;i<81;i++) if(A[i]!==r1&&A[i]!==r2&&pos[r1].includes(Bk[i])) ch=elim(i,b)||ch;
+      }}
+    if(ch) continue;
+    return false;
+  }
+}
+
+// target = Zielanzahl Vorgaben (0 = so wenige wie möglich)
+// logic = beim Entfernen muss es mit dieser Stufe lösbar bleiben
+// notBy = darf mit dieser Stufe NICHT lösbar sein (sonst zu leicht)
+// maxBy = muss mit dieser Stufe lösbar sein (sonst zu schwer)
+const DIFFS = {
+  leicht:  { label: 'Leicht',      target: 40, logic: 1, notBy: 0, maxBy: 0 },
+  mittel:  { label: 'Mittel',      target: 32, logic: 2, notBy: 1, maxBy: 0 },
+  schwer:  { label: 'Schwer',      target: 28, logic: 3, notBy: 2, maxBy: 0 },
+  experte: { label: 'Sehr schwer', target: 0,  logic: 0, notBy: 2, maxBy: 4 },
+  extrem:  { label: 'Extrem',      target: 0,  logic: 0, notBy: 4, maxBy: 0 },
+};
+
+function generate(diffKey) {
+  const cfg = DIFFS[diffKey];
+  let fallback = null;
+  for (let attempt = 0; attempt < 120; attempt++) {
+    const sol = solve(new Array(81).fill(0), 1, true).solution;
+    const puz = sol.slice();
+    let clues = 81;
+    const order = shuffle([...Array(41).keys()]); // Paare i / 80-i → symmetrisches Bild
+    for (const i of order) {
+      if (clues <= cfg.target) break;
+      const j = 80 - i, a = puz[i], b = puz[j];
+      puz[i] = 0; puz[j] = 0;
+      let ok = solve(puz, 2).count === 1;
+      if (ok && cfg.logic) ok = logicSolve(puz, cfg.logic);
+      if (ok) clues -= (i === j ? 1 : 2); else { puz[i] = a; puz[j] = b; }
+    }
+    const result = { puzzle: puz, solution: sol, clues };
+    if (!fallback) fallback = result;
+    if (cfg.notBy && logicSolve(puz, cfg.notBy)) continue; // zu leicht
+    if (cfg.maxBy && !logicSolve(puz, cfg.maxBy)) continue; // zu schwer
+    return result;
+  }
+  return fallback;
+}
+
+/* ================== Oberfläche ================== */
+if (typeof document !== 'undefined') {
+  const STORE = 'sudoku-druckstudio-v1';
+  let state;
+  try { state = JSON.parse(localStorage.getItem(STORE)); } catch (e) { state = null; }
+  const valid = s => s && Array.isArray(s.slots) && s.slots.length === 4;
+  if (!valid(state)) state = { title: '', withSol: false, slots: ['leicht', 'mittel', 'schwer', 'extrem'].map(d => ({ diff: d, grid: new Array(81).fill(0), custom: false })) };
+
+  const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} };
+  const diffOptions = sel => Object.entries(DIFFS).map(([k, v]) => `<option value="${k}"${k === sel ? ' selected' : ''}>${v.label}</option>`).join('');
+  const borderCls = i => (COL[i] % 3 === 2 && COL[i] < 8 ? ' br' : '') + (ROW[i] % 3 === 2 && ROW[i] < 8 ? ' bb' : '');
+
+  const slotsEl = document.getElementById('slots');
+  document.getElementById('allDiff').innerHTML = '<option value="">– wählen –</option>' + diffOptions('');
+  const titleEl = document.getElementById('title'), withSolEl = document.getElementById('withSol');
+  titleEl.value = state.title || ''; withSolEl.checked = !!state.withSol;
+  titleEl.oninput = () => { state.title = titleEl.value; save(); };
+  withSolEl.onchange = () => { state.withSol = withSolEl.checked; save(); };
+
+  function renderSlots() {
+    slotsEl.innerHTML = state.slots.map((s, n) => `
+      <section class="card" data-n="${n}">
+        <div class="card-head">
+          <strong>Sudoku ${n + 1}</strong>
+          <select class="diff">${diffOptions(s.diff)}</select>
+          <button class="gen">Neu</button>
+          <button class="clear">Leeren</button>
+        </div>
+        <div class="board">${[...Array(81).keys()].map(i => `<input data-i="${i}" inputmode="numeric" maxlength="1" autocomplete="off" class="${borderCls(i)}">`).join('')}</div>
+        <div class="status"></div>
+      </section>`).join('');
+    state.slots.forEach((_, n) => refresh(n));
+  }
+
+  function card(n) { return slotsEl.querySelector(`.card[data-n="${n}"]`); }
+
+  function refresh(n) {
+    const s = state.slots[n], c = card(n);
+    const inputs = c.querySelectorAll('.board input');
+    // Konflikte finden
+    const conflict = new Set();
+    for (const unit of UNITS) {
+      const seen = {};
+      for (const i of unit) if (s.grid[i]) (seen[s.grid[i]] = seen[s.grid[i]] || []).push(i);
+      for (const k in seen) if (seen[k].length > 1) seen[k].forEach(i => conflict.add(i));
+    }
+    inputs.forEach((inp, i) => {
+      inp.value = s.grid[i] || '';
+      inp.classList.toggle('given', !!s.grid[i]);
+      inp.classList.toggle('conflict', conflict.has(i));
+    });
+    const st = c.querySelector('.status');
+    const clues = s.grid.filter(Boolean).length;
+    s.solution = null;
+    if (!clues) { st.className = 'status'; st.textContent = 'Leer – „Neu“ klicken oder Zahlen eintippen'; return; }
+    if (conflict.size) { st.className = 'status bad'; st.textContent = 'Widerspruch: doppelte Zahl in Zeile, Spalte oder Block'; return; }
+    const r = clues >= 17 ? solve(s.grid, 2) : { count: 2 };
+    if (r.count === 1) {
+      s.solution = r.solution;
+      st.className = 'status ok';
+      st.textContent = `${clues} Vorgaben · eindeutig lösbar` + (s.custom ? ' · eigenes/bearbeitetes Rätsel' : ' · ' + DIFFS[s.diff].label);
+    } else if (r.count === 0) { st.className = 'status bad'; st.textContent = `${clues} Vorgaben · nicht lösbar`; }
+    else { st.className = 'status bad'; st.textContent = `${clues} Vorgaben · mehrere Lösungen möglich`; }
+  }
+
+  function generateSlot(n) {
+    return new Promise(res => {
+      const c = card(n), board = c.querySelector('.board'), btn = c.querySelector('.gen');
+      board.classList.add('busy'); btn.disabled = true;
+      c.querySelector('.status').textContent = 'erzeuge …';
+      setTimeout(() => {
+        const s = state.slots[n];
+        const r = generate(s.diff);
+        s.grid = r.puzzle; s.custom = false;
+        board.classList.remove('busy'); btn.disabled = false;
+        refresh(n); save(); res();
+      }, 20);
+    });
+  }
+
+  slotsEl.addEventListener('change', e => {
+    if (!e.target.classList.contains('diff')) return;
+    const n = +e.target.closest('.card').dataset.n;
+    state.slots[n].diff = e.target.value; save(); generateSlot(n);
+  });
+  slotsEl.addEventListener('click', e => {
+    const c = e.target.closest('.card'); if (!c) return;
+    const n = +c.dataset.n;
+    if (e.target.classList.contains('gen')) generateSlot(n);
+    if (e.target.classList.contains('clear')) { state.slots[n].grid = new Array(81).fill(0); state.slots[n].custom = true; refresh(n); save(); c.querySelector('.board input').focus(); }
+  });
+  slotsEl.addEventListener('keydown', e => {
+    const inp = e.target; if (inp.tagName !== 'INPUT' || !inp.dataset.i) return;
+    const n = +inp.closest('.card').dataset.n, i = +inp.dataset.i, s = state.slots[n];
+    const move = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -9, ArrowDown: 9 }[e.key];
+    if (move !== undefined) {
+      e.preventDefault();
+      const t = i + move;
+      if (t >= 0 && t < 81 && !(Math.abs(move) === 1 && ROW[t] !== ROW[i])) inp.parentNode.children[t].focus();
+      return;
+    }
+    let v = null;
+    if (/^[1-9]$/.test(e.key)) v = +e.key;
+    else if (['Backspace', 'Delete', '0', ' '].includes(e.key)) v = 0;
+    else if (e.key === 'Tab') return;
+    e.preventDefault();
+    if (v === null) return;
+    s.grid[i] = v; s.custom = true; refresh(n); save();
+    inp.parentNode.children[i].focus();
+  });
+
+  document.getElementById('allDiff').onchange = e => {
+    if (!e.target.value) return;
+    state.slots.forEach(s => s.diff = e.target.value);
+    renderSlots(); save(); e.target.value = '';
+    (async () => { for (let n = 0; n < 4; n++) await generateSlot(n); })();
+  };
+  document.getElementById('genAll').onclick = async () => { for (let n = 0; n < 4; n++) await generateSlot(n); };
+
+  /* ---------- Druck ---------- */
+  function tableHTML(cells, givens) {
+    let h = '<table>';
+    for (let r = 0; r < 9; r++) {
+      h += '<tr>';
+      for (let c = 0; c < 9; c++) {
+        const i = r * 9 + c;
+        const cls = (borderCls(i) + (givens && givens[i] ? ' g' : '')).trim();
+        h += `<td${cls ? ` class="${cls}"` : ''}>${cells[i] || '&nbsp;'}</td>`;
+      }
+      h += '</tr>';
+    }
+    return h + '</table>';
+  }
+  const esc = t => t.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const labelOf = s => s.custom ? 'Eigenes Rätsel' : DIFFS[s.diff].label;
+
+  function buildPrint() {
+    const title = esc(state.title || '');
+    let html = `<div class="sheet"><div class="sheet-title">${title}</div><div class="sheet-grid">` +
+      state.slots.map((s, n) => `<div class="ps"><div class="ps-label"><span>Sudoku ${n + 1}</span><span>${labelOf(s)}</span></div>${tableHTML(s.grid)}</div>`).join('') +
+      '</div></div>';
+    if (state.withSol) {
+      html += `<div class="sheet"><div class="sheet-title">Lösungen${title ? ' – ' + title : ''}</div><div class="sheet-grid">` +
+        state.slots.map((s, n) => `<div class="ps sol"><div class="ps-label"><span>Lösung ${n + 1}</span><span>${labelOf(s)}</span></div>` +
+          (s.solution ? tableHTML(s.solution, s.grid) : '<div class="none">keine eindeutige Lösung</div>') + '</div>').join('') +
+        '</div></div>';
+    }
+    document.getElementById('printArea').innerHTML = html;
+  }
+  window.addEventListener('beforeprint', buildPrint);
+  document.getElementById('printBtn').onclick = () => { buildPrint(); window.print(); };
+
+  renderSlots();
+  // Beim ersten Start leere Felder automatisch füllen
+  (async () => { for (let n = 0; n < 4; n++) if (!state.slots[n].grid.some(Boolean)) await generateSlot(n); })();
+}
+</script>
+</body>
+</html>

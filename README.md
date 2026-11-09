@@ -3,6 +3,8 @@
 Sechs Spiele mit Spielständen, Profilen, Statistik und Bestenlisten:
 Sudoku (5 Stufen) · Minesweeper · 2048 · Solitär (Klondike) · Vier gewinnt (gegen den Computer) · Snake.
 
+Dazu `druck.html`: das Sudoku-Druckstudio (vier Sudokus pro A4-Seite, Schwierigkeit je Rätsel wählbar, optional Lösungsseite).
+
 Reines HTML/CSS/JavaScript, ohne Build-Schritt und ohne externe Abhängigkeiten.
 Nach dem ersten Aufruf läuft alles komplett offline.
 
