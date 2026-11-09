@@ -1,6 +1,6 @@
 // Service Worker: legt alle Dateien beim Installieren in den Cache und liefert sie offline aus.
 // Nach Änderungen an der App VERSION hochzählen, damit Geräte die neue Fassung laden.
-const VERSION = 'spielekiste-1.0.0';
+const VERSION = 'spielekiste-1.0.1';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/storage.js', 'js/lib/util.js', 'js/lib/sudoku-core.js',
@@ -10,7 +10,7 @@ const FILES = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {

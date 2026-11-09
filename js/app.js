@@ -1,7 +1,7 @@
 import * as S from './storage.js';
 import GAMES from './games/index.js';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 const $ = (s, el = document) => el.querySelector(s);
 const view = $('#view'), titleEl = $('#title'), backBtn = $('#back'), slot = $('#slot');
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -9,6 +9,7 @@ const G = id => GAMES.find(g => g.id === id);
 let current = null;          // laufende Spielinstanz
 let navStack = [];           // eigene Verlaufsliste für den Zurück-Pfeil
 let installPrompt = null;
+let ready = false;            // true, sobald Speicher geladen und Profil vorhanden
 
 /* ---------------- Formatierung ---------------- */
 export function fmtTime(sec) {
@@ -150,6 +151,7 @@ window.addEventListener('hashchange', () => {
 });
 
 function render() {
+  if (!profile()) return;
   if (current) { try { current.destroy(); } catch (e) { console.error(e); } current = null; }
   document.querySelectorAll('.modal-bg').forEach(m => m.remove());
   slot.textContent = '';
@@ -400,15 +402,31 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => current && current.pause && current.pause());
 let rsz;
 window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => current && current.resize && current.resize(), 150); });
-window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; if (!location.hash.replace(/^#\/?/, '')) render(); });
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  installPrompt = e;
+  // Nur den Startbildschirm auffrischen – nie, solange ein Dialog offen ist oder noch kein Profil existiert
+  if (ready && profile() && !document.querySelector('.modal-bg') && !location.hash.replace(/^#\/?/, '')) render();
+});
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  // Bei einem Update übernimmt der neue Service Worker sofort; dann einmal neu laden,
+  // damit die neuen Dateien aktiv sind (nicht beim allerersten Besuch).
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    if (current && current.pause) current.pause();
+    location.reload();
+  });
   navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service Worker:', e));
 }
 
 (async () => {
   await S.initStorage();
   if (!profile()) await addProfile(true);
+  ready = true;
   navStack = [location.hash];
   render();
 })();
