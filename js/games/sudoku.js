@@ -1,5 +1,5 @@
 import { generate, DIFFS } from '../lib/sudoku-core.js';
-import { Stopwatch } from '../lib/util.js';
+import { Stopwatch, withSeed } from '../lib/util.js';
 
 const BOX = i => Math.floor(i / 27) * 3 + Math.floor((i % 9) / 3);
 const PEERS = [...Array(81).keys()].map(i => [...Array(81).keys()].filter(k => k !== i &&
@@ -18,11 +18,16 @@ const game = {
   variants: Object.entries(DIFFS).map(([id, d]) => ({ id, label: d.label })),
   metric: { type: 'time', better: 'low', label: 'Zeit' },
   abandon: s => s.hist && s.hist.length ? { won: false } : null,
+  // Tagesrätsel: Schwierigkeit nach Wochentag (So = Extrem)
+  daily: {
+    variant: d => ['extrem', 'leicht', 'mittel', 'mittel', 'schwer', 'schwer', 'experte'][d.weekday],
+    label: d => DIFFS[['extrem', 'leicht', 'mittel', 'mittel', 'schwer', 'schwer', 'experte'][d.weekday]].label
+  },
 
   start(el, ctx) {
     let st = ctx.saved;
     if (!st) {
-      const g = generate(ctx.variant);
+      const g = ctx.daily ? withSeed(ctx.daily.seed, () => generate(ctx.variant)) : generate(ctx.variant);
       st = { puzzle: g.puzzle, solution: g.solution, values: g.puzzle.slice(), notes: new Array(81).fill(0), elapsed: 0, mistakes: 0, hints: 0, hist: [] };
     }
     const sw = new Stopwatch(st.elapsed);

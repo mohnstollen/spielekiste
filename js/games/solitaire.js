@@ -1,8 +1,5 @@
 import { Stopwatch, shuffle } from '../lib/util.js';
-
-const SUITS = ['♠', '♥', '♦', '♣'];
-const RANKS = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'B', 'D', 'K'];
-const red = c => c.s === 1 || c.s === 2;
+import { SUITS, red, cardHTML, layout, columnOffsets, shake, attachDrag } from '../lib/cards.js';
 
 function deal() {
   const deck = [];
@@ -29,7 +26,7 @@ const game = {
     const DRAW = +ctx.variant;
     let st = ctx.saved || deal();
     const sw = new Stopwatch(st.elapsed);
-    let over = false, autoTimer = null, drag = null;
+    let over = false, autoTimer = null;
 
     el.innerHTML = `<div class="sol"><div class="sol-table"></div>
       <div class="tools"><button class="btn" data-a="undo">↶ Zurück</button><button class="btn primary" data-a="auto" hidden>⚡ Fertigstellen</button><button class="btn small" data-a="new">Neues Spiel</button></div>
@@ -40,16 +37,8 @@ const game = {
     const info = () => ctx.setInfo(`⏱ ${ctx.fmtTime(sw.ms / 1000)} · ${st.moves} Z.`);
     const pile = id => id === 'stock' ? st.stock : id === 'waste' ? st.waste : id[0] === 'f' ? st.found[+id[1]] : st.tab[+id[1]];
 
-    function cardHTML(c, p, idx, x, y) {
-      if (!c.u) return `<div class="card down" data-pile="${p}" data-idx="${idx}" style="left:${x}px;top:${y}px"></div>`;
-      return `<div class="card${red(c) ? ' red' : ''}" data-pile="${p}" data-idx="${idx}" style="left:${x}px;top:${y}px"><span class="cr">${RANKS[c.r]}<i>${SUITS[c.s]}</i></span><span class="cs">${SUITS[c.s]}</span></div>`;
-    }
-
     function render() {
-      const W = table.clientWidth, gap = Math.max(3, Math.round(W * 0.012));
-      const cw = Math.floor((W - gap * 8) / 7), ch = Math.round(cw * 1.42);
-      const X = col => gap + col * (cw + gap);
-      table.style.setProperty('--cw', cw + 'px'); table.style.setProperty('--ch', ch + 'px');
+      const { gap, cw, ch, X } = layout(table, 7);
       let html = '';
       // Stapel
       html += `<div class="slot" data-pile="stock" data-idx="-1" style="left:${X(0)}px;top:${gap}px">${st.stock.length ? '' : '↻'}</div>`;
@@ -73,16 +62,13 @@ const game = {
       let maxH = y0 + ch * 3;
       st.tab.forEach((col, t) => {
         const downs = col.filter(c => !c.u).length, ups = col.length - downs;
-        const dOff = Math.round(ch * 0.13);
-        let uOff = Math.round(ch * 0.28);
-        if (ups > 1 && downs * dOff + (ups - 1) * uOff + ch > avail) uOff = Math.max(Math.round(ch * 0.17), Math.floor((avail - ch - downs * dOff) / (ups - 1)));
+        const { dOff, uOff } = columnOffsets(ch, downs, ups, avail);
         html += `<div class="slot col" data-pile="t${t}" data-idx="-1" style="left:${X(t)}px;top:${y0}px"></div>`;
         let y = y0;
         col.forEach((c, i) => { html += cardHTML(c, `t${t}`, i, X(t), y); y += c.u ? uOff : dOff; });
         maxH = Math.max(maxH, y - (col.length ? (col[col.length - 1].u ? uOff : dOff) : 0) + ch + gap);
       });
       table.style.height = maxH + 'px';
-      table.querySelectorAll('.slot.col').forEach(s => s.style.height = (maxH - y0) + 'px');
       table.innerHTML = html;
       table.querySelectorAll('.slot.col').forEach(s => s.style.height = (maxH - y0 - gap) + 'px');
       autoBtn.hidden = !canAuto() || over;
@@ -192,41 +178,16 @@ const game = {
       } else save();
     }
 
-    function shake(elm) { if (!elm) return; elm.classList.remove('shake'); void elm.offsetWidth; elm.classList.add('shake'); }
-
-    // Ziehen und Antippen
-    table.addEventListener('pointerdown', e => {
-      if (over || autoTimer || drag) return;
-      const t = e.target.closest('[data-pile]');
-      if (!t) return;
-      drag = { pile: t.dataset.pile, idx: +t.dataset.idx, x0: e.clientX, y0: e.clientY, moving: false, els: null, target: t, id: e.pointerId };
-      try { table.setPointerCapture(e.pointerId); } catch (_) {}
-    });
-    table.addEventListener('pointermove', e => {
-      if (!drag || drag.id !== e.pointerId) return;
-      const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
-      if (!drag.moving) {
-        if (Math.hypot(dx, dy) < 8) return;
-        if (!canDrag(drag.pile, drag.idx)) { drag = null; return; }
-        drag.moving = true;
-        drag.els = [...table.querySelectorAll(`.card[data-pile="${drag.pile}"]`)].filter(c => +c.dataset.idx >= drag.idx);
-        drag.els.forEach(c => c.classList.add('dragging'));
+    attachDrag(table, {
+      busy: () => over || !!autoTimer,
+      canDrag,
+      drop: move,
+      render,
+      tap: (p, idx, target) => {
+        if (p === 'stock') drawCards();
+        else if (canDrag(p, idx) && !autoMove(p, idx)) shake(target);
       }
-      drag.els.forEach(c => c.style.transform = `translate(${dx}px,${dy}px)`);
     });
-    table.addEventListener('pointerup', e => {
-      if (!drag || drag.id !== e.pointerId) return;
-      const d = drag; drag = null;
-      if (d.moving) {
-        d.els.forEach(c => c.style.visibility = 'hidden');
-        const under = document.elementFromPoint(e.clientX, e.clientY);
-        const target = under && under.closest('[data-pile]');
-        d.els.forEach(c => c.style.visibility = '');
-        if (!(target && move(d.pile, d.idx, target.dataset.pile))) render();
-      } else if (d.pile === 'stock') drawCards();
-      else if (canDrag(d.pile, d.idx)) { if (!autoMove(d.pile, d.idx)) shake(d.target); }
-    });
-    table.addEventListener('pointercancel', () => { if (drag) { drag = null; render(); } });
 
     el.querySelector('.tools').addEventListener('click', e => {
       const a = e.target.closest('[data-a]'); if (!a) return;

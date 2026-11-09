@@ -1,7 +1,10 @@
 # Spielekiste – Offline-Spiele als PWA
 
-Sechs Spiele mit Spielständen, Profilen, Statistik und Bestenlisten:
-Sudoku (5 Stufen) · Minesweeper · 2048 · Solitär (Klondike) · Vier gewinnt (gegen den Computer) · Snake.
+Neun Spiele mit Spielständen, Profilen, Statistik und Bestenlisten:
+Sudoku (5 Stufen) · Minesweeper · 2048 · Solitär (Klondike) · FreeCell · Vier gewinnt · Reversi · Snake · Memory.
+
+**Rätsel des Tages:** Sudoku, Minesweeper und FreeCell liefern jeden Tag dasselbe Rätsel auf allen Geräten
+(Zufall aus dem Datum). Mit Tagesserie und „Ergebnis teilen“ zum Vergleichen – ganz ohne Server.
 
 Dazu `druck.html`: das Sudoku-Druckstudio (vier Sudokus pro A4-Seite, Schwierigkeit je Rätsel wählbar, optional Lösungsseite).
 
@@ -53,6 +56,7 @@ js/app.js            Menü, Navigation, Profile, Bestenlisten, Statistik, Einste
 js/storage.js        Speicher (IndexedDB, Rückfall localStorage)
 js/lib/util.js       Stoppuhr, Wischgesten, Hilfsfunktionen
 js/lib/sudoku-core.js  Sudoku-Generator und Löser (gleicher Kern wie im Druckstudio)
+js/lib/cards.js      Kartendarstellung, Ziehen/Antippen, FreeCell-Spielnummern
 js/games/*.js        ein Modul pro Spiel
 ```
 
@@ -65,6 +69,7 @@ und in `sw.js` zur Dateiliste hinzufügen. Ein Spiel ist ein Objekt mit:
 | `variants` | `[{id, label}]` – Stufen/Größen, je Variante eigene Bestenliste |
 | `metric` | `{type: 'time'|'points'|'moves', better: 'low'|'high', label, always}` – `always: true` = auch ohne Sieg werten (z. B. Punkte) |
 | `abandon(state)` | Ergebnis beim Aufgeben oder `null` |
+| `daily` (optional) | `{variant(tag), label(tag)}` – nimmt am Rätsel des Tages teil; das Spiel erzeugt dann sein Rätsel mit `withSeed(ctx.daily.seed, …)` |
 | `start(el, ctx)` | Spiel aufbauen; gibt `{key, pause, resume, resize, destroy}` zurück |
 
-`ctx` bietet `saved`, `save(state)`, `finish({won, value, detail, draw})`, `restart(abandonResult)`, `setInfo(html)`, `fmtTime`, `toast`, `modal`.
+`ctx` bietet `daily` (null oder `{key, index, seed}`), `saved`, `save(state)`, `finish({won, value, detail, draw})`, `restart(abandonResult)`, `setInfo(html)`, `fmtTime`, `toast`, `modal`.

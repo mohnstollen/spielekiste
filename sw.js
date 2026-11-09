@@ -1,11 +1,12 @@
 // Service Worker: legt alle Dateien beim Installieren in den Cache und liefert sie offline aus.
 // Nach Änderungen an der App VERSION hochzählen, damit Geräte die neue Fassung laden.
-const VERSION = 'spielekiste-1.0.2';
+const VERSION = 'spielekiste-1.1.0';
 const FILES = [
   './', 'index.html', 'druck.html', 'manifest.webmanifest', 'css/style.css',
-  'js/app.js', 'js/storage.js', 'js/lib/util.js', 'js/lib/sudoku-core.js',
+  'js/app.js', 'js/storage.js', 'js/lib/util.js', 'js/lib/sudoku-core.js', 'js/lib/cards.js',
   'js/games/index.js', 'js/games/sudoku.js', 'js/games/minesweeper.js', 'js/games/g2048.js',
-  'js/games/solitaire.js', 'js/games/connect4.js', 'js/games/snake.js',
+  'js/games/solitaire.js', 'js/games/freecell.js', 'js/games/connect4.js', 'js/games/reversi.js',
+  'js/games/snake.js', 'js/games/memory.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'
 ];
 

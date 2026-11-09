@@ -1,4 +1,4 @@
-import { Stopwatch, shuffle } from '../lib/util.js';
+import { Stopwatch, shuffle, withSeed } from '../lib/util.js';
 
 const V = { anfaenger: { w: 9, h: 9, m: 10 }, mittel: { w: 16, h: 16, m: 40 }, experte: { w: 16, h: 30, m: 99 } };
 
@@ -10,12 +10,14 @@ const game = {
     <li>Tippst du auf eine Zahl, um die schon genug Fahnen liegen, werden die restlichen Nachbarn aufgedeckt.</li></ul>`,
   variants: [{ id: 'anfaenger', label: 'Anfänger 9×9' }, { id: 'mittel', label: 'Mittel 16×16' }, { id: 'experte', label: 'Experte 16×30' }],
   metric: { type: 'time', better: 'low', label: 'Zeit' },
-  abandon: s => s.mines ? { won: false } : null,
+  abandon: s => (s.started ?? s.mines) ? { won: false } : null,
+  daily: { variant: () => 'mittel', label: () => '16×16, 40 Minen' },
 
   start(el, ctx) {
     const cfg = V[ctx.variant];
     const { w, h, m } = cfg, n = w * h;
-    let st = ctx.saved || { mines: null, open: new Array(n).fill(0), flag: new Array(n).fill(0), elapsed: 0 };
+    let st = ctx.saved || { mines: null, open: new Array(n).fill(0), flag: new Array(n).fill(0), elapsed: 0, started: false };
+    if (st.started === undefined) st.started = !!st.mines;
     const sw = new Stopwatch(st.elapsed);
     let over = false, flagMode = false, boom = -1;
 
@@ -108,7 +110,8 @@ const game = {
     function tap(i) {
       if (over) return;
       if (flagMode && !st.open[i]) return toggleFlag(i);
-      if (!st.mines) { if (st.flag[i]) return; placeMines(i); sw.run(); }
+      if (!st.mines) { if (st.flag[i]) return; placeMines(i); }
+      st.started = true; sw.run();
       if (st.open[i]) {
         const k = count(i);
         if (k && NB[i].filter(j => st.flag[j]).length === k) NB[i].forEach(j => reveal(j));
@@ -143,14 +146,21 @@ const game = {
       else ctx.restart(game.abandon(st));
     });
 
+    // Tagesrätsel: festes Minenfeld, ein sicherer Startbereich ist schon aufgedeckt
+    if (ctx.daily && !st.mines) withSeed(ctx.daily.seed, () => {
+      st.mines = new Array(n).fill(0);
+      shuffle([...Array(n).keys()]).slice(0, m).forEach(i => st.mines[i] = 1);
+      const zeros = [...Array(n).keys()].filter(i => !st.mines[i] && !count(i));
+      reveal(zeros[Math.floor(Math.random() * zeros.length)]);
+    });
     size(); render(); info();
-    if (st.mines) sw.run();
+    if (st.started) sw.run();
     const iv = setInterval(info, 500);
     return {
       key(e) { if (e.key === 'f' || e.key === ' ') { e.preventDefault(); flagMode = !flagMode; render(); } },
       resize: size,
       pause() { sw.stop(); if (!over) save(); },
-      resume() { if (!over && st.mines) sw.run(); },
+      resume() { if (!over && st.started) sw.run(); },
       destroy() { clearInterval(iv); if (!over) { sw.stop(); save(); } }
     };
   }

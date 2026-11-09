@@ -31,3 +31,29 @@ export function onSwipe(el, cb, { min = 24, continuous = false } = {}) {
 }
 
 export const KEYDIR = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right' };
+
+// ---------- Reproduzierbarer Zufall (für das Rätsel des Tages) ----------
+export function hashSeed(str) {   // FNV-1a, 32 Bit
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h;
+}
+function mulberry32(a) {
+  return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+// Führt fn aus, während Math.random einen festen Startwert nutzt – gleiches Ergebnis auf jedem Gerät
+export function withSeed(seed, fn) {
+  const orig = Math.random;
+  Math.random = mulberry32(seed);
+  try { return fn(); } finally { Math.random = orig; }
+}
+// Heutiges Datum (lokal) als Schlüssel und fortlaufende Tagesnummer
+export function today(d = new Date()) {
+  const p = n => String(n).padStart(2, '0');
+  return {
+    key: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
+    index: Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000),
+    weekday: d.getDay(),
+    label: d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })
+  };
+}

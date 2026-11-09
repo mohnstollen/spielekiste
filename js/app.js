@@ -1,7 +1,8 @@
 import * as S from './storage.js';
 import GAMES from './games/index.js';
+import { today, hashSeed } from './lib/util.js';
 
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.1.0';
 const $ = (s, el = document) => el.querySelector(s);
 const view = $('#view'), titleEl = $('#title'), backBtn = $('#back'), slot = $('#slot');
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -20,8 +21,8 @@ export function fmtTime(sec) {
 function fmtValue(game, v) {
   if (v == null) return '–';
   if (game.metric.type === 'time') return fmtTime(v);
-  if (game.metric.type === 'moves') return v + ' Züge';
-  return Math.round(v).toLocaleString('de-DE') + ' P';
+  if (game.metric.type === 'moves') return v + (v === 1 ? ' Zug' : ' Züge');
+  return Math.round(v).toLocaleString('de-DE') + ' ' + (game.metric.unit || 'P');
 }
 const fmtDate = ts => new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
 function ago(ts) {
@@ -134,11 +135,97 @@ async function showResult(game, v, result, r) {
   else go(`#/spiel/${game.id}`);
 }
 
+/* ---------------- Rätsel des Tages ---------------- */
+const DAILY = GAMES.filter(g => g.daily);
+const dailyKey = d => `daily:${d.key}`;
+const dsaveKey = (pid, gid) => `dsave:${pid}:${gid}`;
+function myDaily(d, gid, pid = profile().id) { return (S.get(dailyKey(d), {})[gid] || {})[pid] || null; }
+function streakOf(pid) {
+  const st = S.get(`dstreak:${pid}`, { last: null, streak: 0, best: 0 });
+  const t = today(), y = today(new Date(Date.now() - 86400000));
+  if (st.last !== t.key && st.last !== y.key) st.streak = 0;
+  return st;
+}
+function recordDaily(game, d, result) {
+  const p = profile(), all = S.get(dailyKey(d), {});
+  all[game.id] = all[game.id] || {};
+  all[game.id][p.id] = { name: p.name, value: result.won ? result.value : null, failed: !result.won, detail: result.detail || '', t: Date.now() };
+  S.set(dailyKey(d), all);
+  S.del(dsaveKey(p.id, game.id));
+  if (result.won) {
+    const st = streakOf(p.id);
+    if (st.last !== d.key) {
+      const y = today(new Date(Date.now() - 86400000));
+      st.streak = st.last === y.key ? st.streak + 1 : 1;
+      st.best = Math.max(st.best, st.streak);
+      st.last = d.key;
+      S.set(`dstreak:${p.id}`, st);
+    }
+  }
+}
+function shareText(d) {
+  const lines = DAILY.map(g => {
+    const r = myDaily(d, g.id);
+    return `${g.icon} ${g.name} (${g.daily.label(d)}): ${r ? (r.failed ? '❌' : fmtValue(g, r.value)) : '–'}`;
+  });
+  const st = streakOf(profile().id);
+  return `Spielekiste – Rätsel des Tages ${d.label}\n${lines.join('\n')}${st.streak > 1 ? `\n🔥 ${st.streak} Tage in Folge` : ''}\n${location.origin}${location.pathname}`;
+}
+async function share(d) {
+  const text = shareText(d);
+  try {
+    if (navigator.share) { await navigator.share({ text }); return; }
+  } catch (e) { if (e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(text); toast('In die Zwischenablage kopiert'); }
+  catch (_) { modal({ title: 'Ergebnis', html: `<pre class="share">${esc(text)}</pre>` }); }
+}
+function pruneDaily() {   // alte Tagesdaten (> 30 Tage) und veraltete Tages-Spielstände entfernen
+  const limit = today(new Date(Date.now() - 30 * 86400000)).key, t = today().key;
+  S.keys('daily:').forEach(k => { if (k.slice(6) < limit) S.del(k); });
+  S.keys('dsave:').forEach(k => { const v = S.get(k); if (!v || v.date !== t) S.del(k); });
+}
+
+function dailyView() {
+  titleEl.textContent = 'Rätsel des Tages';
+  const d = today(), p = profile(), st = streakOf(p.id), all = S.get(dailyKey(d), {});
+  const anyDone = DAILY.some(g => myDaily(d, g.id));
+  view.innerHTML = `
+    <div class="daily-head"><div><b>${d.label}</b><small>Heute spielen alle dieselben Rätsel – auch auf anderen Geräten.</small></div>
+      <div class="streak" title="Tage in Folge mit gelöstem Rätsel">🔥 ${st.streak}<small>Rekord ${st.best}</small></div></div>
+    ${DAILY.map(g => {
+      const mine = myDaily(d, g.id), sv = S.get(dsaveKey(p.id, g.id));
+      const running = sv && sv.date === d.key;
+      const res = Object.entries(all[g.id] || {}).map(([pid, r]) => ({ pid, ...r }))
+        .sort((a, b) => (a.failed - b.failed) || (g.metric.better === 'low' ? a.value - b.value : b.value - a.value));
+      return `<section class="card daily-game">
+        <div class="dg-head"><span class="dg-ico">${g.icon}</span><div><b>${g.name}</b><small>${g.daily.label(d)}</small></div>
+          ${mine ? `<span class="dg-res ${mine.failed ? 'bad' : 'ok'}">${mine.failed ? '❌ nicht geschafft' : '✓ ' + fmtValue(g, mine.value)}</span>`
+                 : `<button class="btn primary small" data-play="${g.id}">${running ? '▶ Weiter' : 'Spielen'}</button>`}</div>
+        ${res.length > 1 || (res.length && res[0].pid !== p.id) ? `<ol class="board mini">${res.map((r, i) => `<li class="${r.pid === p.id ? 'me' : ''}"><span class="rk">${r.failed ? '–' : i + 1}</span><span class="nm">${esc(nameOf(r.pid, r.name))}</span><span class="vl">${r.failed ? '❌' : fmtValue(g, r.value)}</span></li>`).join('')}</ol>` : ''}
+      </section>`;
+    }).join('')}
+    ${anyDone ? '<button class="btn wide" id="share">📤 Ergebnis teilen</button>' : ''}
+    <p class="muted small center">Jeden Tag um Mitternacht gibt es neue Rätsel. Sudoku wird im Lauf der Woche schwerer – sonntags Extrem.</p>`;
+  view.querySelectorAll('[data-play]').forEach(b => b.onclick = () => go(`#/heute/${b.dataset.play}`));
+  const sb = $('#share'); if (sb) sb.onclick = () => share(d);
+}
+
+async function showDailyResult(game, d, result) {
+  const st = streakOf(profile().id);
+  let html = result.won ? `<div class="result-value">${fmtValue(game, result.value)}</div>` : '<p class="center">Morgen gibt es ein neues Rätsel.</p>';
+  if (result.won && result.detail) html += `<p class="muted center">${esc(result.detail)}</p>`;
+  if (st.streak) html += `<p class="center hl">🔥 ${st.streak} ${st.streak === 1 ? 'Tag' : 'Tage in Folge'}</p>`;
+  const a = await modal({ title: result.won ? '🎉 Tagesrätsel gelöst!' : '💥 Leider nicht geschafft', html,
+    buttons: [{ label: 'Übersicht', value: 'list' }, { label: '📤 Teilen', value: 'share', primary: true }] });
+  if (a === 'share') await share(d);
+  go('#/heute');
+}
+
 /* ---------------- Navigation ---------------- */
 function go(hash) { if (location.hash === hash) render(); else location.hash = hash; }
 function parentOf(h) {
   const p = h.replace(/^#\/?/, '').split('/');
-  return p[0] === 'spielen' ? `#/spiel/${p[1]}` : '#/';
+  return p[0] === 'spielen' ? `#/spiel/${p[1]}` : p[0] === 'heute' && p[1] ? '#/heute' : '#/';
 }
 backBtn.onclick = () => {
   if (navStack.length > 1) history.back();
@@ -162,6 +249,7 @@ function render() {
   switch (parts[0]) {
     case 'spiel': return setupView(parts[1]);
     case 'spielen': return playView(parts[1], parts[2]);
+    case 'heute': return parts[1] ? dailyPlay(parts[1]) : dailyView();
     case 'bestenliste': return boardsView(parts[1], parts[2]);
     case 'statistik': return statsView();
     case 'einstellungen': return settingsView();
@@ -175,6 +263,10 @@ function homeView() {
   const p = profile();
   view.innerHTML = `
     <button class="profile-chip" id="pchip"><span>👤 ${esc(p.name)}</span><small>Profil wechseln</small></button>
+    ${(() => {
+      const d = today(), done = DAILY.filter(g => myDaily(d, g.id)).length, st = streakOf(p.id);
+      return `<a class="daily-card" href="#/heute"><span class="dc-ico">📅</span><div><b>Rätsel des Tages</b><small>${d.label} · ${done === DAILY.length ? 'alle gelöst ✓' : `${done} von ${DAILY.length} gespielt`}</small></div>${st.streak ? `<span class="streak small">🔥 ${st.streak}</span>` : '<span class="go">›</span>'}</a>`;
+    })()}
     <div class="tiles">${GAMES.map(g => {
       const sv = S.get(saveKey(p.id, g.id));
       return `<a class="tile" href="#/spiel/${g.id}"><div class="ico">${g.icon}</div><div class="name">${g.name}</div>${sv ? '<span class="badge">läuft</span>' : ''}</a>`;
@@ -238,30 +330,44 @@ function setupView(gid) {
 }
 
 /* ---------------- Spielen ---------------- */
-function playView(gid, vid) {
+function dailyPlay(gid) {
+  const g = G(gid), d = today();
+  if (!g || !g.daily) return location.replace('#/heute');
+  if (myDaily(d, gid)) return location.replace('#/heute');
+  playView(gid, g.daily.variant(d), d);
+}
+
+function playView(gid, vid, daily = null) {
   const g = G(gid), v = g && g.variants.find(x => x.id === vid);
   if (!v) return location.replace('#/');
-  titleEl.textContent = `${g.name} · ${v.label}`;
-  const p = profile(), key = saveKey(p.id, g.id);
+  titleEl.textContent = daily ? `📅 ${g.name} · ${g.daily.label(daily)}` : `${g.name} · ${v.label}`;
+  const p = profile(), key = daily ? dsaveKey(p.id, g.id) : saveKey(p.id, g.id);
   let sv = S.get(key);
-  if (sv && sv.variant !== vid) sv = null;
+  if (sv && (daily ? sv.date !== daily.key : sv.variant !== vid)) sv = null;
   view.className = 'playing';
   view.innerHTML = `<div class="game game-${g.id}"></div>`;
   let done = false;
+  const here = location.hash;
   const ctx = {
     variant: vid, variantLabel: v.label, profile: p,
+    daily: daily ? { ...daily, seed: hashSeed(daily.key + ':' + g.id) } : null,
     saved: sv ? sv.state : null,
-    save: state => { if (!done) S.set(key, { variant: vid, state, updated: Date.now() }); },
+    save: state => { if (!done) S.set(key, { variant: vid, date: daily ? daily.key : undefined, state, updated: Date.now() }); },
     setInfo: html => { slot.innerHTML = html; },
     fmtTime, modal, toast,
     finish: result => {
       if (done) return;
       done = true;
       S.del(key);
+      if (daily) {
+        recordDaily(g, daily, result);
+        return setTimeout(() => { if (location.hash === here) showDailyResult(g, daily, result); }, result.delay ?? 400);
+      }
       const r = record(g, vid, result);
-      setTimeout(() => { if (location.hash === `#/spielen/${gid}/${vid}`) showResult(g, v, result, r); }, result.delay ?? 400);
+      setTimeout(() => { if (location.hash === here) showResult(g, v, result, r); }, result.delay ?? 400);
     },
     restart: async abandonResult => {
+      if (daily) return;
       if (!done && !await confirmBox('Neues Spiel?', 'Das aktuelle Spiel wird beendet.', 'Neues Spiel')) return;
       if (abandonResult && !done) record(g, vid, abandonResult);
       done = true;
@@ -269,7 +375,10 @@ function playView(gid, vid) {
       render();
     }
   };
-  try { current = g.start($('.game', view), ctx); }
+  try {
+    current = g.start($('.game', view), ctx);
+    if (daily) view.querySelectorAll('[data-a=new]').forEach(b => b.hidden = true);
+  }
   catch (e) { console.error(e); view.innerHTML = `<p class="center">Fehler beim Starten: ${esc(e.message)}</p>`; }
 }
 
@@ -400,6 +509,12 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) current.pause && current.pause();
   else current.resume && current.resume();
 });
+let lastDay = today().key;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || today().key === lastDay) return;
+  lastDay = today().key; pruneDaily();
+  if (!current) render();
+});
 window.addEventListener('pagehide', () => current && current.pause && current.pause());
 let rsz;
 window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => current && current.resize && current.resize(), 150); });
@@ -427,6 +542,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 (async () => {
   await S.initStorage();
   if (!profile()) await addProfile(true);
+  pruneDaily();
   ready = true;
   navStack = [location.hash];
   render();
