@@ -2,7 +2,7 @@ import * as S from './storage.js';
 import GAMES from './games/index.js';
 import { today, hashSeed } from './lib/util.js';
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const $ = (s, el = document) => el.querySelector(s);
 const view = $('#view'), titleEl = $('#title'), backBtn = $('#back'), slot = $('#slot');
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -120,7 +120,7 @@ function record(game, vid, result) {
 }
 
 async function showResult(game, v, result, r) {
-  const head = result.won ? '🎉 Gewonnen!' : result.draw ? '🤝 Unentschieden' : game.metric.always ? 'Spiel vorbei' : '😕 Verloren';
+  const head = result.title || (result.won ? '🎉 Gewonnen!' : result.draw ? '🤝 Unentschieden' : game.metric.always ? 'Spiel vorbei' : '😕 Verloren');
   let html = '';
   if (result.value != null && (result.won || (game.metric.always && result.value > 0))) {
     html += `<div class="result-value">${fmtValue(game, result.value)}</div>`;
@@ -309,10 +309,10 @@ function setupView(gid) {
   view.innerHTML = `
     <div class="setup-head"><div class="ico big">${g.icon}</div><p class="muted">${g.desc}</p></div>
     ${sv ? `<button class="btn primary wide resume" id="resume">▶ Weiterspielen · ${esc(variantLabel(g, sv.variant))}<small>gespeichert ${ago(sv.updated)}</small></button>` : ''}
-    <h3>Neues Spiel</h3>
+    <h3>${g.variantsTitle || 'Neues Spiel'}</h3>
     <div class="variants">${g.variants.map(v => {
       const st = S.get(statKey(p.id, g.id, v.id));
-      const info = st && st.best != null ? 'Bestwert ' + fmtValue(g, st.best) : st && st.played ? `${st.played}× gespielt` : 'noch nicht gespielt';
+      const info = g.variantInfo ? g.variantInfo(v.id, p.id) : st && st.best != null ? 'Bestwert ' + fmtValue(g, st.best) : st && st.played ? `${st.played}× gespielt` : 'noch nicht gespielt';
       return `<button class="variant" data-v="${v.id}"><span>${v.label}</span><small>${info}</small></button>`;
     }).join('')}</div>
     ${g.help ? `<details class="help"><summary>Regeln & Bedienung</summary>${g.help}</details>` : ''}
@@ -465,7 +465,7 @@ async function settingsView() {
         pr.list = pr.list.filter(x => x.id !== id);
         if (pr.current === id) pr.current = pr.list[0].id;
         S.set('profiles', pr);
-        S.keys(`save:${id}:`).concat(S.keys(`stats:${id}:`)).forEach(k => S.del(k));
+        S.keys(`save:${id}:`).concat(S.keys(`stats:${id}:`), S.keys(`prog:${id}:`)).forEach(k => S.del(k));
         S.keys('board:').forEach(k => S.set(k, S.get(k).filter(x => x.pid !== id)));
         break;
       case 'export': {
