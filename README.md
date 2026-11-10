@@ -3,6 +3,11 @@
 Neun Spiele mit Spielständen, Profilen, Statistik und Bestenlisten:
 Sudoku (5 Stufen) · Minesweeper · 2048 · Solitär (Klondike) · FreeCell · Vier gewinnt · Reversi · Snake · Memory.
 
+**Schachschule:** Schach lernen in kleinen Schritten – 6 Kapitel mit 23 Lektionen (Brett, Figuren, Schlagen & Werte,
+Bauernspiel gegen den Computer, Schach/Matt/Patt, Sonderregeln). Jede Lektion mischt kurze Erklärungen mit Übungen am Brett:
+Felder finden, Zugfelder markieren, Sterne einsammeln, den richtigen Zug finden, Quizfragen. Unerlaubte Züge werden erklärt
+(„Der Läufer zieht nur schräg“, „Dein König stünde im Schach“), Tipps kommen in Stufen, pro Lektion gibt es bis zu drei Sterne.
+
 **Rätsel des Tages:** Sudoku, Minesweeper und FreeCell liefern jeden Tag dasselbe Rätsel auf allen Geräten
 (Zufall aus dem Datum). Mit Tagesserie und „Ergebnis teilen“ zum Vergleichen – ganz ohne Server.
 
@@ -57,6 +62,9 @@ js/storage.js        Speicher (IndexedDB, Rückfall localStorage)
 js/lib/util.js       Stoppuhr, Wischgesten, Hilfsfunktionen
 js/lib/sudoku-core.js  Sudoku-Generator und Löser (gleicher Kern wie im Druckstudio)
 js/lib/cards.js      Kartendarstellung, Ziehen/Antippen, FreeCell-Spielnummern
+js/lib/chess-core.js    Schachregeln: FEN, Zuggenerator, Schach/Matt/Patt, Notation (K D T L S), Erklärungen für unerlaubte Züge
+js/lib/chess-board.js   Schachbrett mit eigenen SVG-Figuren, Antippen/Ziehen, Markierungen, Pfeile, Animation
+js/lib/chess-lessons.js Lehrstoff der Schachschule (Kapitel → Lektionen → Schritte)
 js/games/*.js        ein Modul pro Spiel
 ```
 
@@ -69,7 +77,8 @@ und in `sw.js` zur Dateiliste hinzufügen. Ein Spiel ist ein Objekt mit:
 | `variants` | `[{id, label}]` – Stufen/Größen, je Variante eigene Bestenliste |
 | `metric` | `{type: 'time'|'points'|'moves', better: 'low'|'high', label, always}` – `always: true` = auch ohne Sieg werten (z. B. Punkte) |
 | `abandon(state)` | Ergebnis beim Aufgeben oder `null` |
+| `variantInfo(vid, pid)`, `variantsTitle` (optional) | eigener Text unter jeder Variante bzw. eigene Überschrift (z. B. Lernfortschritt) |
 | `daily` (optional) | `{variant(tag), label(tag)}` – nimmt am Rätsel des Tages teil; das Spiel erzeugt dann sein Rätsel mit `withSeed(ctx.daily.seed, …)` |
 | `start(el, ctx)` | Spiel aufbauen; gibt `{key, pause, resume, resize, destroy}` zurück |
 
-`ctx` bietet `daily` (null oder `{key, index, seed}`), `saved`, `save(state)`, `finish({won, value, detail, draw})`, `restart(abandonResult)`, `setInfo(html)`, `fmtTime`, `toast`, `modal`.
+`ctx` bietet `daily` (null oder `{key, index, seed}`), `saved`, `save(state)`, `finish({won, value, detail, draw, title})`, `restart(abandonResult)`, `setInfo(html)`, `fmtTime`, `toast`, `modal`.
