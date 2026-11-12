@@ -4,6 +4,7 @@ import * as S from '../storage.js';
 import * as C from '../lib/chess-core.js';
 import { createBoard, pieceSVG } from '../lib/chess-board.js';
 import { CHAPTERS, collectSolve } from '../lib/chess-lessons.js';
+import * as A from '../lib/chess-ai.js';
 
 const GID = 'schachschule';
 const progKey = pid => `prog:${pid}:${GID}`;
@@ -313,13 +314,19 @@ const game = {
           };
         },
 
-        move(s, p) {
+        move(s, p) { return STEP.seq({ ...s, line: [s.ok] }, p); },
+
+        // Eigene Züge (line[k] = erlaubte Züge oder Prüffunktion), dazwischen antwortet der Computer
+        seq(s, p) {
           const opts = s.opts || {};
-          let pos = p, solved = false, busy = false, lastPre = [];
-          const isOk = (m, n) => Array.isArray(s.ok)
-            ? (s.ok.some(u => C.uci(m).startsWith(u)) || s.wrong || 'Das ist erlaubt, aber nicht die Lösung. Versuch es noch einmal.')
-            : s.ok(pos, m, n);
+          let pos = p, k = 0, solved = false, busy = false, lastPre = [], level = 0;
+          const isOk = (m, n) => {
+            const o = s.line[k];
+            return Array.isArray(o) ? (o.some(u => C.uci(m).startsWith(u)) || s.wrong || 'Das ist erlaubt, aber nicht die Lösung. Versuch es noch einmal.') : o(pos, m, n);
+          };
           const sols = () => C.legalMoves(pos, opts).filter(m => isOk(m, C.makeMove(pos, m)) === true);
+          const setPrompt = () => { if (s.prompts && s.prompts[k]) promptEl.innerHTML = s.prompts[k]; };
+          setPrompt();
           async function onMove(f, t) {
             if (busy || solved) return;
             // König auf den eigenen Turm gezogen = Rochade
@@ -339,7 +346,20 @@ const game = {
             }
             const notation = C.san(pos, m), n = applyMove(pos, m), res = isOk(m, n);
             board.arrows([]); board.mark({});
-            if (res === true) { solved = true; pos = n; return ready(`${s.success || 'Richtig!'} <span class="cs-san">${notation}</span>`); }
+            if (res === true) {
+              pos = n;
+              if (k === s.line.length - 1 || C.status(pos)) { solved = true; return ready(`${s.success || 'Richtig!'} <span class="cs-san">${notation}</span>`); }
+              // Der Computer antwortet
+              busy = true; k++; level = 0;
+              fb(`Gut! <span class="cs-san">${notation}</span> – Schwarz überlegt …`, 'ok');
+              later(() => {
+                const r = A.bestMove(pos, 2), rs = C.san(pos, r);
+                pos = applyMove(pos, r); lastPre = [r.from, r.to];
+                busy = false; setPrompt();
+                fb(`Schwarz antwortet <span class="cs-san">${rs}</span>.`);
+              }, 700);
+              return;
+            }
             busy = true;
             miss(`<span class="cs-san">${notation}</span> ${res}`);
             later(() => {
@@ -353,15 +373,67 @@ const game = {
             targets: i => C.legalMoves(pos, { ...opts, from: i }).map(m => m.to) });
           if (s.pre) {
             busy = true;
-            s.pre.forEach((u, k) => later(() => {
+            s.pre.forEach((u, j) => later(() => {
               const m = C.parseUci(pos, u);
               pos = applyMove(pos, m); lastPre = [m.from, m.to];
-              if (k === s.pre.length - 1) busy = false;
-            }, 600 + k * 900));
+              if (j === s.pre.length - 1) busy = false;
+            }, 600 + j * 900));
           }
-          return { tip: tipper(hintText(s),
+          // Tipps je Zug: Hinweistext (nur beim ersten Zug), dann die Figur, dann der Pfeil
+          const levels = [
+            k === 0 && s.hint ? () => fb('💡 ' + s.hint, 'tip') : null,
             () => { const m = sols()[0]; if (m) { board.addMark(m.from, 'hint'); fb('💡 Mit dieser Figur geht es.', 'tip'); } },
-            () => { const m = sols()[0]; if (m) board.arrows([[m.from, m.to, 'g']]); }) };
+            () => { const m = sols()[0]; if (m) board.arrows([[m.from, m.to, 'g']]); }];
+          return { tip() {
+            if (busy || solved) return;
+            if (!tipUsed) { tipUsed = true; mistakes++; }
+            const avail = levels.filter((f, i) => f && (i > 0 || k === 0));
+            avail[Math.min(level++, avail.length - 1)]();
+          } };
+        },
+
+        // Gegen den verteidigenden Computer matt setzen
+        endgame(s, p) {
+          const limit = s.limit || 50;
+          let pos = p, moves = 0, over = false, thinking = false, extra = 0;
+          promptEl.innerHTML += ` <small class="muted">Gut wären höchstens ${s.target} Züge.</small>`;
+          fb('Du spielst Weiß und bist am Zug.');
+          const fail = msg => { over = true; board.set({ mode: 'none' }); miss(msg); xBtn.hidden = false; xBtn.textContent = '↺ Nochmal'; };
+          board.set({ mode: 'move', movable: i => !over && !thinking && C.colorOf(pos.b[i]) === 'w',
+            targets: i => C.legalMoves(pos, { from: i }).map(m => m.to),
+            onMove: async (f, t) => {
+              const cands = C.legalMoves(pos, { from: f }).filter(m => m.to === t);
+              if (!cands.length) { const why = C.explainIllegal(pos, f, t); if (why) { board.flash(t, 'bad'); fb(why, 'bad'); } return; }
+              let m = cands[0];
+              if (cands.length > 1) { thinking = true; const q = await askPromo('w'); thinking = false; if (!q) return; m = cands.find(x => x.promo === q); }
+              pos = applyMove(pos, m); moves++; board.arrows([]);
+              const st = C.status(pos);
+              if (st === 'mate') {
+                over = true; xBtn.hidden = false; xBtn.textContent = '↺ Nochmal';
+                if (moves <= s.target) return ready(`Schachmatt in ${moves} Zügen! ⭐`);
+                extra = 1;
+                return ready(`Schachmatt in ${moves} Zügen! Mit etwas Übung schaffst du es in höchstens ${s.target}.`);
+              }
+              if (st === 'stalemate') return fail('Patt! Schwarz steht nicht im Schach, kann aber nicht ziehen – unentschieden. Lass dem König immer ein Feld.');
+              if (moves >= limit) return fail(`${limit} Züge ohne Matt – nach der 50-Züge-Regel ist die Partie remis. Versuch es noch einmal!`);
+              thinking = true; fb(`Zug ${moves} · Schwarz überlegt …`);
+              later(() => {
+                const r = A.bestMove(pos, 2), rs = C.san(pos, r);
+                pos = applyMove(pos, r); thinking = false;
+                if (C.status(pos) === 'insufficient') return fail('Schwarz hat deine Figur geschlagen – jetzt kann niemand mehr matt setzen. Remis! Achte darauf, dass deine Figuren gedeckt sind oder weit genug weg stehen.');
+                fb(`Zug ${moves} · Schwarz zieht <span class="cs-san">${rs}</span>. Du bist dran.`);
+              }, 450);
+            } });
+          return {
+            x: () => run(),
+            beforeNext: () => { mistakes += extra; },
+            tip: tipper(() => {
+              if (over || thinking) return;
+              const m = A.bestMove(pos, 3);
+              board.arrows([[m.from, m.to, 'g']]);
+              fb('💡 Ein guter Zug. Überlege, warum!', 'tip');
+            })
+          };
         },
 
         quiz(s, p) {
