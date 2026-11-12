@@ -8,7 +8,10 @@
 //   move    einen Zug finden (ok: ['e2e4'] oder fn(pos, move, nachher) → true | Begründung; pre: Züge vorher)
 //   quiz    Auswahlfrage (options, answer: Index oder fn(pos), explain: Text oder fn(pos))
 //   play    Partie gegen den Computer (game: 'pawns', level)
+//   seq     mehrere eigene Züge, der Computer antwortet dazwischen (line: [ok, ok, …], prompts: Text je Zug)
+//   endgame aus der Stellung heraus gegen den verteidigenden Computer matt setzen (target: gute Zugzahl, limit: Höchstzahl)
 import * as C from './chess-core.js';
+import * as A from './chess-ai.js';
 
 const F = (place, turn = 'w', castle = '-', ep = '-') => `${place} ${turn} ${castle} ${ep} 0 1`;
 const EMPTY = F('8/8/8/8/8/8/8/8');
@@ -85,6 +88,29 @@ const kindText = p => [
   'Patt: Kein Schach, aber Schwarz hat keinen erlaubten Zug – unentschieden.',
   'Nichts davon: Kein Schach, und Schwarz kann ganz normal ziehen.'][kindOf(p)];
 const mateQuiz = p => C.status(p) === 'mate' ? 'Ja – der König steht im Schach, und nichts hilft mehr.' : `Nein – Schwarz rettet sich mit ${rescue(p)}.`;
+
+/* ---------- Hilfen für Phase 2 (Matt und Taktik) ---------- */
+const mate2 = (p, m) => A.matesIn(p, m, 2) || 'Danach kann sich Schwarz noch befreien. Suche einen Zug, nach dem jede Antwort ins Matt führt.';
+const wins = (p, m) => (m.captured && VAL[C.typeOf(m.captured)] >= 3) || 'Damit gewinnst du keine Figur. Was steht jetzt ungeschützt?';
+// Felder der Figuren von `color`, die an ihren König gefesselt sind
+export function pinned(p, color) {
+  const k = C.kingSq(p, color), out = [];
+  if (k < 0) return out;
+  for (let i = 0; i < 64; i++) {
+    if (i === k || C.colorOf(p.b[i]) !== color) continue;
+    const q = C.clone(p);
+    q.b[i] = null;
+    if (!C.inCheck(p, color) && C.inCheck(q, color)) out.push(i);
+  }
+  return out;
+}
+const pinsKnight = (p, m, n) => pinned(n, 'b').some(i => n.b[i] === 'n') || 'Damit ist der Springer nicht gefesselt. Zwischen deiner Figur, dem Springer und dem König muss eine gerade Linie entstehen.';
+// Nach dem Zug darf Schwarz nicht sofort matt setzen können
+const noMateThreat = (p, m, n) => {
+  const t = A.mateMoves(n, 1);
+  return !t.length || `Dann setzt Schwarz mit ${C.san(n, t[0])} matt!`;
+};
+const canMate1 = p => A.canMate(p, 1) ? 0 : 1;
 
 const KIND = ['Schach', 'Matt', 'Patt', 'Nichts davon'];
 const VALUES_TABLE = `<table class="cs-values"><tr><td>Bauer</td><td>1</td></tr><tr><td>Springer</td><td>3</td></tr><tr><td>Läufer</td><td>3</td></tr>
@@ -389,6 +415,135 @@ export const CHAPTERS = [
         explain: 'Ja! Mit König und Turm kann man matt setzen – das lernst du bald.' },
       { type: 'quiz', fen: F('4k3/8/8/8/8/8/4P3/4K3'), prompt: 'König und Bauer gegen König?', options: ['Ja', 'Nein'], answer: p => C.insufficient(p) ? 1 : 0,
         explain: 'Ja – wenn der Bauer durchkommt, wird er zur Dame.' }
+    ] }
+  ]
+},
+{
+  id: 'matt1', title: 'Matt in einem Zug', desc: 'Typische Mattbilder erkennen – und Matt in zwei.',
+  lessons: [
+    { id: 'grundreihe', title: 'Das Grundreihenmatt', desc: 'Gefangen hinter den eigenen Bauern.', steps: [
+      { type: 'intro', fen: F('6k1/5ppp/8/8/8/8/5PPP/3R2K1'), demo: ['d1d8'],
+        text: 'Steht der König hinter seinen eigenen Bauern, hat er keine Fluchtfelder. Ein Turm oder eine Dame auf der Grundreihe setzt dann matt – das <b>Grundreihenmatt</b>. Es gehört zu den häufigsten Matts überhaupt!' },
+      { type: 'move', fen: F('1k6/ppp5/8/8/8/8/5PPP/4Q1K1'), prompt: 'Setze <b>matt</b>!', ok: mate, success: 'Grundreihenmatt!' },
+      { type: 'move', fen: F('3r2k1/5ppp/8/8/8/8/5PPP/3RR1K1'), prompt: 'Setze <b>matt</b>! Achte auf den schwarzen Turm.', ok: mate, success: 'Matt – der schwarze Turm war die einzige Verteidigung.',
+        hint: 'Der schwarze Turm verteidigt die Grundreihe. Kannst du ihn schlagen?' },
+      { type: 'quiz', fen: F('6k1/5pp1/7p/8/8/8/5PPP/3R2K1'), arrows: [['d1', 'd8', 'g']], prompt: 'Ist <b>Td8</b> hier matt?', options: ['Ja', 'Nein'],
+        answer: p => A.matesIn(p, C.parseUci(p, 'd1d8'), 1) ? 0 : 1, explain: 'Nein – der Bauer h6 hat dem König <b>Luft</b> gemacht: Er flieht nach h7.' },
+      { type: 'move', fen: F('3r2k1/5ppp/8/8/8/8/5PPP/6K1'), prompt: 'Jetzt droht <b>dir</b> ein Grundreihenmatt (Td1). Verhindere es!', ok: noMateThreat,
+        success: 'Gut verteidigt! „Luft machen“ ist ein wichtiger Trick.', hint: 'Gib deinem König ein Fluchtfeld – zieh einen Bauern vor ihm eins nach vorn.' }
+    ] },
+    { id: 'dame', title: 'Matt mit der Dame', desc: 'Die Dame direkt am König.', steps: [
+      { type: 'intro', fen: F('6k1/5ppp/8/8/8/6Q1/1B6/6K1'), arrows: [['b2', 'g7', 'b'], ['g3', 'g7', 'g']],
+        text: 'Die Dame setzt gern direkt neben dem König matt. Dafür muss sie <b>gedeckt</b> sein – sonst schlägt der König sie einfach. Hier deckt der Läufer das Feld g7.' },
+      { type: 'move', fen: F('6k1/5ppp/8/8/8/6Q1/1B6/6K1'), prompt: 'Setze <b>matt</b>!', ok: mate, success: 'Matt! Der Läufer deckt die Dame.' },
+      { type: 'move', fen: F('4k3/3p1p2/8/3N4/7Q/8/8/6K1'), prompt: 'Setze <b>matt</b>! Der Springer hilft.', ok: mate, success: 'Matt!', hint: 'Welches Feld neben dem König deckt der Springer?' },
+      { type: 'move', fen: F('k7/2K5/8/8/8/8/8/1Q6'), prompt: 'Setze <b>matt</b>! Dein König hilft.', ok: mate, success: 'Matt!' },
+      { type: 'move', fen: F('k7/8/1K6/8/8/8/8/2Q5'), prompt: 'Setze <b>matt</b> – aber kein Patt!', ok: mate, success: 'Matt!' }
+    ] },
+    { id: 'figuren', title: 'Matt mit Turm, Läufer und Springer', desc: 'Auch kleine Figuren setzen matt.', steps: [
+      { type: 'intro', fen: F('6rk/6pp/8/6N1/8/8/8/6K1'), demo: ['g5f7'],
+        text: 'Auch ein Springer kann matt setzen: Ist der König von seinen eigenen Figuren eingeklemmt, reicht ein Schach, das man nicht blocken kann. Das heißt <b>ersticktes Matt</b>. Drück auf „Zeigen“.' },
+      { type: 'move', fen: F('r5rk/6pp/8/4N3/8/8/8/6K1'), prompt: 'Setze <b>matt</b> – ein ersticktes Matt!', ok: mate, success: 'Ersticktes Matt!' },
+      { type: 'move', fen: F('7k/7p/8/8/8/B7/8/6RK'), prompt: 'Setze <b>matt</b>! Der Turm hält schon die g-Linie.', ok: mate, success: 'Matt – Läufer und Turm arbeiten zusammen.' },
+      { type: 'move', fen: F('6k1/R7/8/8/8/8/8/1R4K1'), prompt: 'Setze <b>matt</b> mit den beiden Türmen!', ok: mate, success: 'Matt! Ein Turm sperrt die 7. Reihe, der andere gibt Schach.' },
+      { type: 'move', fen: F('k7/8/1K6/8/8/8/8/7R'), prompt: 'Setze <b>matt</b> mit Turm und König!', ok: mate, success: 'Matt!' }
+    ] },
+    { id: 'matt2', title: 'Matt in zwei Zügen', desc: 'Erst vorbereiten, dann zuschlagen.', steps: [
+      { type: 'intro', fen: F('7k/8/8/8/8/8/R7/1R4K1'),
+        text: 'Manchmal braucht man einen <b>Vorbereitungszug</b>: Du ziehst, Schwarz antwortet – und dann setzt du matt. Frag dich zuerst: Welche Felder bleiben dem König? Wie kann ich sie wegnehmen?' },
+      { type: 'seq', fen: F('7k/8/8/8/8/8/R7/1R4K1'), line: [mate2, mate], prompts: ['<b>Matt in zwei</b>: Sperr den König zuerst ein …', '… und jetzt <b>matt</b>!'],
+        hint: 'Ein Turm auf der 7. Reihe nimmt dem König alle Felder dort.', success: 'Matt in zwei!' },
+      { type: 'seq', fen: F('k7/8/2K5/8/8/8/8/7R'), line: [mate2, mate], prompts: ['<b>Matt in zwei</b> mit Turm und König.', 'Und jetzt <b>matt</b>!'],
+        hint: 'Bring deinen König so, dass er dem schwarzen König gegenübersteht.', success: 'Matt in zwei!' },
+      { type: 'seq', fen: F('r6k/6pp/7N/8/2Q5/8/8/6K1'), line: [mate2, mate], prompts: ['<b>Matt in zwei</b> – mit einem Damenopfer!', 'Jetzt kommt das erstickte Matt!'],
+        hint: 'Opfere die Dame auf g8. Wer kann sie schlagen – und was ist dann mit g8?', success: 'Ersticktes Matt – das berühmte „Philidor-Matt“!' }
+    ] }
+  ]
+},
+{
+  id: 'grundmatts', title: 'Die Grundmatts', desc: 'Mit zwei Türmen, mit der Dame und mit dem Turm gegen den König.',
+  lessons: [
+    { id: 'treppe', title: 'Treppenmatt mit zwei Türmen', desc: 'Reihe für Reihe an den Rand.', steps: [
+      { type: 'intro', fen: F('6k1/R7/8/8/8/8/8/1R4K1'), marks: marks(rank(7), 'area'), arrows: [['b1', 'b8', 'g']],
+        text: 'Mit zwei Türmen ist Mattsetzen leicht: Ein Turm sperrt eine Reihe ab, der andere gibt auf der nächsten Reihe Schach. Abwechselnd treiben sie den König Reihe für Reihe an den Rand – wie auf einer <b>Treppe</b>.' },
+      { type: 'intro', fen: F('8/8/8/8/R2k4/8/7R/6K1', 'b'), arrows: [['a4', 'h4', 'b']],
+        text: 'Kommt der König einem Turm zu nahe, zieh den Turm einfach weit weg auf die andere Seite des Bretts – auf derselben Reihe. Dann kann der König ihn nicht schlagen, und die Sperre bleibt.' },
+      { type: 'endgame', fen: F('8/8/8/3k4/8/8/8/R5RK'), target: 8, prompt: 'Setze <b>matt</b>! Der Computer verteidigt sich.' },
+      { type: 'endgame', fen: F('8/1k6/8/8/8/8/8/R3K2R'), target: 8, prompt: 'Noch einmal – diesmal steht der König oben.' }
+    ] },
+    { id: 'dame', title: 'Dame und König', desc: 'Den König einkasteln.', steps: [
+      { type: 'intro', fen: F('8/8/8/2k5/8/8/8/4K2Q'),
+        text: 'Die Dame schafft fast alles allein: Stell sie einen <b>Springerzug</b> vom König entfernt hin. Dann ist er in einem Kasten gefangen. Folge ihm mit der Dame – der Kasten wird kleiner, bis der König am Rand steht. Dann holst du deinen eigenen König dazu und setzt matt.' },
+      { type: 'intro', fen: F('k7/2Q5/1K6/8/8/8/8/8', 'b'), marks: { a7: 'bad', b7: 'bad', b8: 'bad' },
+        text: 'Die größte Gefahr ist das <b>Patt</b>: Lass dem König immer mindestens ein Feld, solange du nicht Schach gibst. Hier ist es passiert – unentschieden.' },
+      { type: 'endgame', fen: F('8/8/8/3k4/8/8/8/Q3K3'), target: 12, prompt: 'Setze <b>matt</b> mit Dame und König!' },
+      { type: 'endgame', fen: F('8/8/8/8/8/8/k7/4K2Q'), target: 12, prompt: 'Noch einmal – Vorsicht vor dem Patt!' }
+    ] },
+    { id: 'turm', title: 'Turm und König', desc: 'Das wichtigste Grundmatt.', steps: [
+      { type: 'intro', fen: F('3k4/8/3K4/8/8/8/8/7R'), demo: ['h1h8'],
+        text: 'So sieht das Ziel aus: Die Könige stehen sich gegenüber (<b>Opposition</b>), und der Turm gibt auf der Grundreihe Schach. Drück auf „Zeigen“.' },
+      { type: 'intro', fen: F('8/8/8/4k3/8/8/8/R3K3'), marks: marks(file('b').concat(file('a')), 'area'),
+        text: 'Der Plan:<br>1. Mit dem Turm den König <b>absperren</b> – er darf nicht über die Linie des Turms.<br>2. Den eigenen König <b>heranholen</b>.<br>3. Stehen sich die Könige gegenüber, gibt der Turm <b>Schach</b> und drängt den König eine Reihe zurück.<br>Wiederhole das, bis der König am Rand matt ist. Wartezüge mit dem Turm helfen, wenn die Könige noch nicht richtig stehen.' },
+      { type: 'endgame', fen: F('6k1/8/8/8/8/8/8/R3K3'), target: 16, prompt: 'Der König steht schon am Rand. Setze <b>matt</b>!' },
+      { type: 'endgame', fen: F('8/8/8/3k4/8/8/8/R3K3'), target: 25, prompt: 'Die Meisterprüfung: Setze aus der Mitte heraus <b>matt</b>!' }
+    ] }
+  ]
+},
+{
+  id: 'taktik', title: 'Taktik', desc: 'Gabel, Fesselung, Spieß und Abzug: Material gewinnen mit Tricks.',
+  lessons: [
+    { id: 'gabel', title: 'Die Gabel', desc: 'Zwei Figuren auf einmal angreifen.', steps: [
+      { type: 'intro', fen: F('q3k3/2N5/8/8/8/8/8/4K3', 'b'), arrows: [['c7', 'a8', 'r'], ['c7', 'e8', 'r']],
+        text: 'Greift eine Figur zwei gegnerische Figuren gleichzeitig an, ist das eine <b>Gabel</b> (ein Doppelangriff). Der Gegner kann nur eine retten. Besonders stark: eine Gabel mit Schach – dann muss zuerst der König weg.' },
+      { type: 'seq', fen: F('q3k3/8/8/1N6/8/8/8/4K3'), line: [['b5c7'], captureOf('q')],
+        prompts: ['Gewinne die Dame mit einer <b>Springergabel</b>!', 'Der König musste weg. Jetzt schlag zu!'], success: 'Dame gewonnen!',
+        wrong: 'Suche ein Feld, von dem aus der Springer König und Dame gleichzeitig angreift.' },
+      { type: 'seq', fen: F('4r1k1/5p1p/8/8/4N3/8/5PPP/6K1'), line: [['e4f6'], captureOf('r')],
+        prompts: ['Springergabel: Schach und Turm zugleich!', 'Hol dir den Turm!'], success: 'Turm gewonnen!',
+        wrong: 'Von welchem Feld aus greift der Springer g8 und e8 an?' },
+      { type: 'seq', fen: F('r5k1/6pp/8/8/8/8/5PPP/3Q2K1'), line: [['d1d5'], captureOf('r')],
+        prompts: ['Auch die Dame kann gabeln: Greif <b>König und Turm</b> gleichzeitig an!', 'Und jetzt den Turm!'], success: 'Turm gewonnen!',
+        wrong: 'Suche ein Feld, von dem aus die Dame schräg zum König und schräg zum Turm blickt.' },
+      { type: 'seq', fen: F('k7/8/8/2n1r3/8/3P4/6PP/5R1K'), line: [['d3d4'], wins],
+        prompts: ['Sogar ein Bauer kann gabeln. Greif zwei Figuren an!', 'Schwarz konnte nur eine retten. Schlag die andere!'], success: 'Figur gewonnen – mit einem Bauern!',
+        wrong: 'Bauern schlagen schräg. Wohin muss der Bauer, damit er c5 und e5 angreift?' }
+    ] },
+    { id: 'fesselung', title: 'Die Fesselung', desc: 'Wer sich bewegt, verliert.', steps: [
+      { type: 'intro', fen: F('4k3/8/2n5/1B6/8/8/8/4K3', 'b'), arrows: [['b5', 'e8', 'r']], marks: { c6: 'bad' },
+        text: 'Steht hinter einer angegriffenen Figur eine wertvollere, ist sie <b>gefesselt</b>. Ist sie an den König gefesselt, darf sie gar nicht ziehen – sonst stünde der König im Schach. Hier kann der Springer sich nicht bewegen.' },
+      { type: 'find', fen: F('4k3/8/1n6/4b3/8/8/8/4RK2', 'b'), prompt: 'Welche schwarze Figur ist <b>gefesselt</b>? Tippe sie an.',
+        ok: p => pinned(p, 'b').map(C.sqName), wrong: () => 'Diese Figur darf frei ziehen.', success: 'Richtig – der Läufer steht zwischen Turm und König.' },
+      { type: 'quiz', fen: F('3qk3/8/8/3n4/8/8/8/3RK3', 'b'), arrows: [['d1', 'd8', 'r']], prompt: 'Darf der Springer auf d5 ziehen?', options: ['Ja', 'Nein'],
+        answer: p => C.legalMoves(p, { from: C.sq('d5') }).length ? 0 : 1,
+        explain: 'Ja – er ist nur an die Dame gefesselt, nicht an den König. Zieht er weg, schlägt der Turm aber die Dame. Ziehen darf er, klug ist es nicht.' },
+      { type: 'move', fen: F('r3k3/8/2n5/8/8/8/8/4KB2'), prompt: '<b>Fessle</b> den Springer an den König!', ok: pinsKnight, success: 'Gefesselt! Der Springer darf nicht mehr ziehen.' },
+      { type: 'seq', fen: F('r3k3/pp6/2n5/1B6/3P4/8/8/4K3'), line: [['d4d5'], wins],
+        prompts: ['Der Springer ist gefesselt. Greif ihn noch einmal an – mit der billigsten Figur!', 'Er kann nicht fliehen. Schlag ihn!'], success: 'Springer gewonnen!',
+        wrong: 'Greif den gefesselten Springer mit einer Figur an, die weniger wert ist – mit dem Bauern.' }
+    ] },
+    { id: 'spiess', title: 'Der Spieß', desc: 'Die wertvolle Figur muss weg.', steps: [
+      { type: 'intro', fen: F('1r6/8/8/4k3/8/6B1/8/6K1', 'b'), arrows: [['g3', 'b8', 'r']],
+        text: 'Beim <b>Spieß</b> ist es umgekehrt wie bei der Fesselung: Die wertvollere Figur steht <b>vorn</b>. Sie muss ausweichen – und die Figur dahinter geht verloren.' },
+      { type: 'seq', fen: F('1r6/8/8/4k3/8/8/8/4B1K1'), line: [['e1g3'], captureOf('r')],
+        prompts: ['Spieße König und Turm auf!', 'Der König ist ausgewichen. Nimm den Turm!'], success: 'Turm gewonnen!',
+        wrong: 'Gib so Schach, dass hinter dem König der Turm auf derselben Linie steht.' },
+      { type: 'seq', fen: F('4R3/8/8/1k6/8/8/1q6/7K'), line: [['e8b8'], captureOf('q')],
+        prompts: ['Spieß mit dem Turm: Gewinne die Dame!', 'Jetzt die Dame!'], success: 'Dame gewonnen!',
+        wrong: 'König und Dame stehen auf derselben Linie. Gib von dort Schach!' },
+      { type: 'quiz', fen: F('k7/8/2q5/8/8/5B2/8/6K1', 'b'), arrows: [['f3', 'a8', 'r']], prompt: 'Fesselung oder Spieß?', options: ['Fesselung', 'Spieß'], answer: 0,
+        explain: 'Fesselung: Vorn steht die Dame, dahinter der König. Die Dame darf die Linie nicht verlassen.' },
+      { type: 'quiz', fen: F('q7/8/2k5/8/8/5B2/8/6K1', 'b'), arrows: [['f3', 'a8', 'r']], prompt: 'Und hier?', options: ['Fesselung', 'Spieß'], answer: 1,
+        explain: 'Spieß: Vorn steht der König im Schach und muss weg – dann ist die Dame dahinter verloren.' }
+    ] },
+    { id: 'abzug', title: 'Der Abzug', desc: 'Eine Figur zieht weg, die andere greift an.', steps: [
+      { type: 'intro', fen: F('3q3k/7p/8/8/3N4/8/1B6/6K1'), arrows: [['b2', 'h8', 'r']], marks: { d4: 'sel' },
+        text: 'Zieht eine Figur weg und gibt dabei die Linie für eine Figur dahinter frei, ist das ein <b>Abzug</b>. Hier steht der Springer vor dem Läufer. Zieht er weg, gibt der Läufer Schach – und der Springer kann dabei selbst etwas angreifen!' },
+      { type: 'seq', fen: F('3q3k/7p/8/8/3N4/8/1B6/6K1'), line: [['d4e6', 'd4c6'], captureOf('q')],
+        prompts: ['<b>Abzugsschach!</b> Zieh den Springer so weg, dass er die Dame angreift.', 'Schwarz musste das Schach abwehren. Hol dir die Dame!'], success: 'Dame gewonnen!',
+        wrong: 'Das ist zwar Abzugsschach – aber der Springer greift dabei nichts an. Wo würde er die Dame angreifen?' },
+      { type: 'seq', fen: F('r5k1/4qppp/8/8/4B3/8/5PPP/4R1K1'), line: [['e4h7'], captureOf('q')],
+        prompts: ['Der Läufer steht vor deinem Turm. Zieh ihn <b>mit Schach</b> weg – dann ist die Dame fällig!', 'Jetzt schlägt der Turm die Dame!'], success: 'Dame gewonnen – für einen Läufer!',
+        wrong: 'Ohne Schach kann die Dame einfach den Turm schlagen. Der Läufer muss Schach geben!' }
     ] }
   ]
 }

@@ -3,9 +3,11 @@
 Neun Spiele mit Spielständen, Profilen, Statistik und Bestenlisten:
 Sudoku (5 Stufen) · Minesweeper · 2048 · Solitär (Klondike) · FreeCell · Vier gewinnt · Reversi · Snake · Memory.
 
-**Schachschule:** Schach lernen in kleinen Schritten – 6 Kapitel mit 23 Lektionen (Brett, Figuren, Schlagen & Werte,
-Bauernspiel gegen den Computer, Schach/Matt/Patt, Sonderregeln). Jede Lektion mischt kurze Erklärungen mit Übungen am Brett:
-Felder finden, Zugfelder markieren, Sterne einsammeln, den richtigen Zug finden, Quizfragen. Unerlaubte Züge werden erklärt
+**Schachschule:** Schach lernen in kleinen Schritten – 9 Kapitel mit 34 Lektionen: Brett, Figuren, Schlagen & Werte,
+Bauernspiel gegen den Computer, Schach/Matt/Patt, Sonderregeln, Matt in einem und zwei Zügen, die Grundmatts
+(zwei Türme, Dame, Turm – gegen einen verteidigenden Computer) und Taktik (Gabel, Fesselung, Spieß, Abzug).
+Jede Lektion mischt kurze Erklärungen mit Übungen am Brett: Felder finden, Zugfelder markieren, Sterne einsammeln,
+den richtigen Zug finden, Quizfragen, Kombinationen, bei denen der Computer antwortet. Unerlaubte Züge werden erklärt
 („Der Läufer zieht nur schräg“, „Dein König stünde im Schach“), Tipps kommen in Stufen, pro Lektion gibt es bis zu drei Sterne.
 
 **Rätsel des Tages:** Sudoku, Minesweeper und FreeCell liefern jeden Tag dasselbe Rätsel auf allen Geräten
@@ -65,6 +67,7 @@ js/lib/cards.js      Kartendarstellung, Ziehen/Antippen, FreeCell-Spielnummern
 js/lib/chess-core.js    Schachregeln: FEN, Zuggenerator, Schach/Matt/Patt, Notation (K D T L S), Erklärungen für unerlaubte Züge
 js/lib/chess-board.js   Schachbrett mit eigenen SVG-Figuren, Antippen/Ziehen, Markierungen, Pfeile, Animation
 js/lib/chess-lessons.js Lehrstoff der Schachschule (Kapitel → Lektionen → Schritte)
+js/lib/chess-ai.js      Schach-KI für die Übungen: Bewertung, Alpha-Beta-Suche, Matt-Löser (Matt in n)
 js/games/*.js        ein Modul pro Spiel
 ```
 

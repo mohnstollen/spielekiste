@@ -2,7 +2,7 @@ import * as S from './storage.js';
 import GAMES from './games/index.js';
 import { today, hashSeed } from './lib/util.js';
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const $ = (s, el = document) => el.querySelector(s);
 const view = $('#view'), titleEl = $('#title'), backBtn = $('#back'), slot = $('#slot');
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

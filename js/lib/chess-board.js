@@ -54,7 +54,7 @@ export function createBoard(el, opts = {}) {
       const p = state.b[i];
       if (!p) continue;
       const s = toScreen(i);
-      h += `<div class="cb-pc" data-p="${i}" style="left:${(s & 7) * 12.5}%;top:${(s >> 3) * 12.5}%">${pieceSVG(p)}</div>`;
+      h += `<div class="cb-pc" data-p="${i}" data-k="${p}" style="left:${(s & 7) * 12.5}%;top:${(s >> 3) * 12.5}%">${pieceSVG(p)}</div>`;
     }
     pcsEl.innerHTML = h;
   }
