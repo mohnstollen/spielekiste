@@ -333,3 +333,34 @@ ol.cs-lessons { list-style: none; padding: 0; margin: 10px 0; display: grid; gap
 .cs-stars .on { color: var(--gold); animation: pop .4s ease-out backwards; }
 .modal-btns:has(.cs-promo) { justify-content: center; flex-wrap: nowrap; }
 .modal-btns .btn:has(.cs-promo) { padding: 6px; }
+
+/* ---------- Schach (Partie mit Coach) ---------- */
+.cb-sq.warn::before { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 3px #f08a24; border-radius: 3px; }
+.cp-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: min(100%, 60vh); margin: 4px auto; min-height: 26px; font-size: .9rem; }
+.cp-who { font-weight: 600; white-space: nowrap; }
+.cp-cap { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 0; }
+.cp-cap b { margin-left: 4px; color: var(--muted); }
+.cp-ico { display: inline-block; width: 18px; height: 18px; margin-left: -3px; }
+.cp-color { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 10px auto 0; }
+.cp-color .btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cp-warn, .cp-review { width: min(100%, 60vh); margin: 10px auto 0; background: var(--surface); border: 2px solid #f08a24; border-radius: var(--radius); padding: 10px 14px; }
+.cp-review { border-color: var(--line); }
+.cp-review h3 { margin: 4px 0 6px; }
+.cp-warn p { margin: 0 0 4px; line-height: 1.45; }
+.cp-warn .tools, .cp-review .tools { margin: 8px 0 0; }
+.cp-tools { margin: 10px auto 0; gap: 6px; }
+.cp-tools .btn:disabled { opacity: .4; }
+.cp-end .tools { margin: 10px 0 0; }
+.cp-rlist { display: flex; flex-wrap: wrap; gap: 6px; }
+.cp-rlist .chip.bad { border-color: var(--bad); color: var(--bad); font-weight: 600; }
+.cp-rlist .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cp-moves { width: min(100%, 60vh); margin: 10px auto 0; font-size: .88rem; line-height: 1.7; color: var(--ink); }
+.cp-moves b { color: var(--muted); font-weight: 500; }
+.cp-moves span:last-child { background: var(--accent-soft); border-radius: 4px; padding: 0 3px; }
+
+/* ---------- Schachaufgaben ---------- */
+.pz-dots { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin: 14px auto 0; max-width: min(100%, 60vh); }
+.pz-dots span { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .78rem; font-weight: 700; background: var(--surface2); color: var(--muted); }
+.pz-dots .cur { background: var(--accent); color: #fff; }
+.pz-dots .ok { background: var(--good); color: #fff; }
+.pz-dots .bad { background: var(--bad); color: #fff; }

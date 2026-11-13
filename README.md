@@ -1,6 +1,6 @@
 # Spielekiste – Offline-Spiele als PWA
 
-Neun Spiele mit Spielständen, Profilen, Statistik und Bestenlisten:
+Neun Spiele, Schach mit Coach, Schachaufgaben und eine Schachschule – mit Spielständen, Profilen, Statistik und Bestenlisten:
 Sudoku (5 Stufen) · Minesweeper · 2048 · Solitär (Klondike) · FreeCell · Vier gewinnt · Reversi · Snake · Memory.
 
 **Schachschule:** Schach lernen in kleinen Schritten – 9 Kapitel mit 34 Lektionen: Brett, Figuren, Schlagen & Werte,
@@ -9,6 +9,14 @@ Bauernspiel gegen den Computer, Schach/Matt/Patt, Sonderregeln, Matt in einem un
 Jede Lektion mischt kurze Erklärungen mit Übungen am Brett: Felder finden, Zugfelder markieren, Sterne einsammeln,
 den richtigen Zug finden, Quizfragen, Kombinationen, bei denen der Computer antwortet. Unerlaubte Züge werden erklärt
 („Der Läufer zieht nur schräg“, „Dein König stünde im Schach“), Tipps kommen in Stufen, pro Lektion gibt es bis zu drei Sterne.
+
+**Schach:** Ganze Partien gegen den Computer (Leicht, Mittel, Schwer) mit **Coach**: Er warnt, bevor ein Zug eine Figur
+einstellt oder ein Matt zulässt, meldet übersehene Matts und umrandet gefährdete Figuren. Züge lassen sich zurücknehmen,
+ein Tipp zeigt einen guten Zug, und nach der Partie zeigt ein **Rückblick**, wo es bessere Züge gab.
+Die KI rechnet in einem Web Worker, damit die Oberfläche flüssig bleibt.
+
+**Schachaufgaben:** Runden mit 10 Aufgaben (Matt in 1, Matt in 2, Material gewinnen), 3 Schachaufgaben im Rätsel des Tages
+und eine **Lernkartei**: Falsch gelöste Aufgaben kommen am nächsten Tag wieder, dann nach 3, 7 und 14 Tagen.
 
 **Rätsel des Tages:** Sudoku, Minesweeper und FreeCell liefern jeden Tag dasselbe Rätsel auf allen Geräten
 (Zufall aus dem Datum). Mit Tagesserie und „Ergebnis teilen“ zum Vergleichen – ganz ohne Server.
@@ -67,7 +75,9 @@ js/lib/cards.js      Kartendarstellung, Ziehen/Antippen, FreeCell-Spielnummern
 js/lib/chess-core.js    Schachregeln: FEN, Zuggenerator, Schach/Matt/Patt, Notation (K D T L S), Erklärungen für unerlaubte Züge
 js/lib/chess-board.js   Schachbrett mit eigenen SVG-Figuren, Antippen/Ziehen, Markierungen, Pfeile, Animation
 js/lib/chess-lessons.js Lehrstoff der Schachschule (Kapitel → Lektionen → Schritte)
-js/lib/chess-ai.js      Schach-KI für die Übungen: Bewertung, Alpha-Beta-Suche, Matt-Löser (Matt in n)
+js/lib/chess-ai.js      Schach-KI: Bewertung (Feldtabellen, Mattführung), Alpha-Beta-Suche mit Zeitlimit, Matt-Löser, Coach-Analyse
+js/lib/chess-worker.js  Web Worker, in dem die KI rechnet; chess-engine.js spricht mit ihm (Rückfall: direkt rechnen)
+js/lib/chess-puzzles.js Aufgaben-Sammlung, erzeugt mit tools/make-puzzles.mjs (Engine-Partien mit eingestreutem Patzer)
 js/games/*.js        ein Modul pro Spiel
 ```
 
@@ -84,4 +94,4 @@ und in `sw.js` zur Dateiliste hinzufügen. Ein Spiel ist ein Objekt mit:
 | `daily` (optional) | `{variant(tag), label(tag)}` – nimmt am Rätsel des Tages teil; das Spiel erzeugt dann sein Rätsel mit `withSeed(ctx.daily.seed, …)` |
 | `start(el, ctx)` | Spiel aufbauen; gibt `{key, pause, resume, resize, destroy}` zurück |
 
-`ctx` bietet `daily` (null oder `{key, index, seed}`), `saved`, `save(state)`, `finish({won, value, detail, draw, title})`, `restart(abandonResult)`, `setInfo(html)`, `fmtTime`, `toast`, `modal`.
+`ctx` bietet `daily` (null oder `{key, index, seed}`), `saved`, `save(state)`, `finish({won, value, detail, draw, title, quiet})` (quiet = nur speichern, das Spiel zeigt das Ergebnis selbst), `restart(abandonResult)`, `setInfo(html)`, `fmtTime`, `toast`, `modal`.

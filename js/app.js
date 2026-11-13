@@ -2,7 +2,7 @@ import * as S from './storage.js';
 import GAMES from './games/index.js';
 import { today, hashSeed } from './lib/util.js';
 
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 const $ = (s, el = document) => el.querySelector(s);
 const view = $('#view'), titleEl = $('#title'), backBtn = $('#back'), slot = $('#slot');
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -364,6 +364,7 @@ function playView(gid, vid, daily = null) {
         return setTimeout(() => { if (location.hash === here) showDailyResult(g, daily, result); }, result.delay ?? 400);
       }
       const r = record(g, vid, result);
+      if (result.quiet) return;            // Spiel zeigt das Ergebnis selbst an
       setTimeout(() => { if (location.hash === here) showResult(g, v, result, r); }, result.delay ?? 400);
     },
     restart: async abandonResult => {
