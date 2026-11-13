@@ -429,7 +429,7 @@ const game = {
             beforeNext: () => { mistakes += extra; },
             tip: tipper(() => {
               if (over || thinking) return;
-              const m = A.bestMove(pos, 3);
+              const m = A.bestMoveTimed(pos, 6, 700);
               board.arrows([[m.from, m.to, 'g']]);
               fb('💡 Ein guter Zug. Überlege, warum!', 'tip');
             })

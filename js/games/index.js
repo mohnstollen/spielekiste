@@ -13,5 +13,7 @@ import reversi from './reversi.js';
 import snake from './snake.js';
 import memory from './memory.js';
 import schachschule from './chess-school.js';
+import schach from './chess-play.js';
+import aufgaben from './chess-puzzles.js';
 
-export default [sudoku, minesweeper, g2048, solitaire, freecell, connect4, reversi, snake, memory, schachschule];
+export default [sudoku, minesweeper, g2048, solitaire, freecell, connect4, reversi, snake, memory, schachschule, schach, aufgaben];
