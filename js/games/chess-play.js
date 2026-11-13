@@ -117,7 +117,7 @@ const game = {
     function status() {
       if (st.over) return;
       if (busy) return fb('Der Computer überlegt …');
-      fb(myTurn() ? (C.inCheck(pos()) ? '<b>Schach!</b> Du musst dein König retten.' : 'Du bist am Zug.') : '');
+      fb(myTurn() ? (C.inCheck(pos()) ? '<b>Schach!</b> Du musst deinen König retten.' : 'Du bist am Zug.') : '');
     }
 
     /* ---------- Spielablauf ---------- */

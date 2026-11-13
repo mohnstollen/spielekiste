@@ -2,6 +2,8 @@
 // Die Engine spielt mit etwas Zufall gegen sich selbst; Stellungen mit Matt in 1, Matt in 2
 // oder einem eindeutig gewinnenden Zug werden gesammelt. Alle erlaubten Lösungszüge sind vorberechnet.
 // Aufruf: node tools/make-puzzles.mjs [Anzahl Partien] > js/lib/chess-puzzles.js
+// Für parallele Läufe: … [Partien] jsonl [mates] > teil.jsonl – gibt jede gefundene Aufgabe sofort als JSON-Zeile aus;
+// „mates“ sucht gezielt Matt in 1 und 2. Die Teile werden danach zusammengeführt und geprüft.
 import * as C from '../js/lib/chess-core.js';
 import * as A from '../js/lib/chess-ai.js';
 
