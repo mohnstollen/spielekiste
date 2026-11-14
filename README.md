@@ -1,6 +1,6 @@
 # Spielekiste – Offline-Spiele als PWA
 
-Neun Spiele, Schach mit Coach, Schachaufgaben und eine Schachschule – mit Spielständen, Profilen, Statistik und Bestenlisten:
+Neun Spiele, Schach mit Coach, Schachaufgaben, eine Schachschule und ein Wissensquiz – mit Spielständen, Profilen, Statistik und Bestenlisten:
 Sudoku (5 Stufen) · Minesweeper · 2048 · Solitär (Klondike) · FreeCell · Vier gewinnt · Reversi · Snake · Memory.
 
 **Schachschule:** Schach lernen in kleinen Schritten – 9 Kapitel mit 34 Lektionen: Brett, Figuren, Schlagen & Werte,
@@ -17,6 +17,11 @@ Die KI rechnet in einem Web Worker, damit die Oberfläche flüssig bleibt.
 
 **Schachaufgaben:** Runden mit 10 Aufgaben (Matt in 1, Matt in 2, Material gewinnen), 3 Schachaufgaben im Rätsel des Tages
 und eine **Lernkartei**: Falsch gelöste Aufgaben kommen am nächsten Tag wieder, dann nach 3, 7 und 14 Tagen.
+
+**Quizleiter:** 15 Fragen aus dem Allgemeinwissen (345 Fragen in 5 Schwierigkeitsstufen), eine Punkteleiter bis 25.000
+mit Sicherheitsstufen nach Frage 5 und 10, drei Joker (50:50, Publikum, Freund), Aussteigen jederzeit möglich.
+Klassisch oder mit Zeitlimit, Bestenliste und „Quiz des Tages“ im Rätsel des Tages. Bereits gestellte Fragen werden pro Profil gemerkt
+und erst wiederholt, wenn neue ausgehen.
 
 **Rätsel des Tages:** Sudoku, Minesweeper und FreeCell liefern jeden Tag dasselbe Rätsel auf allen Geräten
 (Zufall aus dem Datum). Mit Tagesserie und „Ergebnis teilen“ zum Vergleichen – ganz ohne Server.
@@ -77,6 +82,7 @@ js/lib/chess-board.js   Schachbrett mit eigenen SVG-Figuren, Antippen/Ziehen, Ma
 js/lib/chess-lessons.js Lehrstoff der Schachschule (Kapitel → Lektionen → Schritte)
 js/lib/chess-ai.js      Schach-KI: Bewertung (Feldtabellen, Mattführung), Alpha-Beta-Suche mit Zeitlimit, Matt-Löser, Coach-Analyse
 js/lib/chess-worker.js  Web Worker, in dem die KI rechnet; chess-engine.js spricht mit ihm (Rückfall: direkt rechnen)
+js/lib/quiz-questions.js Fragen der Quizleiter (Stufe, Kategorie, Frage, richtige und drei falsche Antworten)
 js/lib/chess-puzzles.js Aufgaben-Sammlung, erzeugt mit tools/make-puzzles.mjs (Engine-Partien mit eingestreutem Patzer)
 js/games/*.js        ein Modul pro Spiel
 ```

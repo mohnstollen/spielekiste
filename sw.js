@@ -1,6 +1,6 @@
 // Service Worker: legt alle Dateien beim Installieren in den Cache und liefert sie offline aus.
 // Nach Änderungen an der App VERSION hochzählen, damit Geräte die neue Fassung laden.
-const VERSION = 'spielekiste-1.4.0';
+const VERSION = 'spielekiste-1.5.0';
 const FILES = [
   './', 'index.html', 'druck.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/storage.js', 'js/lib/util.js', 'js/lib/sudoku-core.js', 'js/lib/cards.js',
@@ -9,6 +9,7 @@ const FILES = [
   'js/games/snake.js', 'js/games/memory.js', 'js/games/chess-school.js',
   'js/lib/chess-core.js', 'js/lib/chess-board.js', 'js/lib/chess-lessons.js', 'js/lib/chess-ai.js',
   'js/lib/chess-engine.js', 'js/lib/chess-worker.js', 'js/lib/chess-puzzles.js', 'js/games/chess-play.js', 'js/games/chess-puzzles.js',
+  'js/games/quiz.js', 'js/lib/quiz-questions.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'
 ];
 
