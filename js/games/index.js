@@ -15,5 +15,6 @@ import memory from './memory.js';
 import schachschule from './chess-school.js';
 import schach from './chess-play.js';
 import aufgaben from './chess-puzzles.js';
+import quiz from './quiz.js';
 
-export default [sudoku, minesweeper, g2048, solitaire, freecell, connect4, reversi, snake, memory, schachschule, schach, aufgaben];
+export default [sudoku, minesweeper, g2048, solitaire, freecell, connect4, reversi, snake, memory, schachschule, schach, aufgaben, quiz];
